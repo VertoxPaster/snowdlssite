@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SnowClient — Minecraft 2026</title>
+  <meta name="description" content="SnowClient — визуальный клиент для Minecraft: красивый интерфейс, высокий FPS, гибкие настройки и регулярные обновления." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="preload">
+
+<!-- ═════ PRELOADER ═════ -->
+<div class="loader" id="loader">
+  <div class="loader-inner">
+    <div class="loader-flake">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
+        <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
+      </svg>
+    </div>
+    <div class="loader-name">SnowClient</div>
+    <div class="loader-bar"><span></span></div>
+  </div>
+</div>
+
+<!-- ═════ BACKGROUND ═════ -->
+<div class="bg-base"></div>
+<div class="bg-grid"></div>
+<div class="aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+<canvas class="snow-canvas" id="snowCanvas" aria-hidden="true"></canvas>
+<div class="cursor-glow" id="cursorGlow"></div>
+<div class="scroll-progress" id="scrollProgress"></div>
+
+<!-- ═════ NAVBAR ═════ -->
+<nav class="navbar" id="navbar">
+  <div class="nav-pill">
+
+    <span class="nav-logo" onclick="scrollTo({top:0,behavior:'smooth'})">
+      <span class="logo-flake">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
+          <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
+        </svg>
+      </span>
+      <span class="logo-text">SnowClient</span>
+    </span>
+
+    <ul class="nav-center" id="navCenter">
+      <li><a href="#hero"        data-i18n="nav0">Главная</a></li>
+      <li><a href="#features"    data-i18n="nav1">Функции</a></li>
+      <li><a href="#video"       data-i18n="nav2">Видеообзор</a></li>
+      <li><a href="#pricing"     data-i18n="nav3">Купить</a></li>
+      <li><a href="#support"     data-i18n="nav4">Поддержка</a></li>
+    </ul>
+
+    <div class="nav-right">
+      <div class="lang-selector" id="langSelector">
+        <button class="lang-btn" id="langBtn" onclick="toggleLangDropdown()">
+          <span id="langFlag">🇷🇺</span>
+          <span id="langLabel">RU</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="6,9 12,15 18,9"></polyline>
+          </svg>
+        </button>
+        <div class="lang-dropdown" id="langDropdown"></div>
+      </div>
+
+      <button class="nav-auth magnetic" id="navAuth" type="button" onclick="onAuthClick()">
+        <span class="nav-auth-avatar" id="navAuthAvatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <span class="nav-auth-text">
+          <span class="nav-auth-name" id="navAuthName" data-i18n="navLogin">Войти</span>
+          <span class="nav-auth-bal" id="navAuthBal" hidden></span>
+        </span>
+      </button>
+
+      <a href="#pricing" class="nav-buy" data-i18n="navBuy">Купить</a>
+
+      <button class="hamburger" id="hamburger" onclick="toggleMobileMenu()" aria-label="Меню">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#hero"     onclick="closeMobileMenu()" data-mob-i18n="nav0">Главная</a>
+  <a href="#features" onclick="closeMobileMenu()" data-mob-i18n="nav1">Функции</a>
+  <a href="#video"    onclick="closeMobileMenu()" data-mob-i18n="nav2">Видеообзор</a>
+  <a href="#pricing"  onclick="closeMobileMenu()" data-mob-i18n="nav3">Купить</a>
+  <a href="#support"  onclick="closeMobileMenu()" data-mob-i18n="nav4">Поддержка</a>
+  <button class="mobile-auth" id="mobileAuth" type="button" onclick="closeMobileMenu(); onAuthClick()">
+    <span id="mobileAuthLabel" data-i18n="navLogin">Войти</span>
+  </button>
+</div>
+
+<!-- ═════ HERO ═════ -->
+<section id="hero" style="padding:0;">
+  <div class="hero">
+    <div class="hero-inner">
+
+      <div class="hero-left">
+
+        <div class="hero-eyebrow anim-up">
+          <span class="hero-eyebrow-dot"></span>
+          Minecraft Client · 2026
+        </div>
+
+        <h1 id="heroTitle" aria-label="SnowClient">
+          <span class="hero-title-line hero-title-static" data-split="Snow">Snow</span>
+          <span class="hero-title-line hero-title-accent" data-split="Client">Client</span>
+        </h1>
+
+        <p class="hero-tagline anim-up-3" id="heroTagline">Чистая игра. Высокий FPS. Твой стиль.</p>
+
+        <p class="hero-desc anim-up-3" id="heroQuote">
+          SnowClient — визуальный клиент для Minecraft, в котором красота и скорость идут рука об руку.
+        </p>
+
+        <div class="hero-actions anim-up-4">
+          <a href="#pricing" class="btn btn-primary magnetic" id="heroBtnBuy">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <path d="M16 10a4 4 0 01-8 0"/>
+            </svg>
+            Купить сейчас
+          </a>
+          <a href="#features" class="btn btn-outline" id="heroBtnLearn">Подробнее</a>
+        </div>
+
+        <div class="hero-chips anim-up-5">
+          <span class="chip">Fabric 1.21.11</span>
+          <span class="chip">ClickGUI</span>
+          <span class="chip">Configs</span>
+        </div>
+
+      </div>
+
+      <div class="hero-right anim-right">
+        <div class="hero-float">
+          <span class="float-chip float-chip-a">FPS&nbsp;↑</span>
+          <span class="float-chip float-chip-b">1.21.11</span>
+
+          <div class="hero-video-frame tilt" id="heroVideoFrame">
+            <div class="hero-video-placeholder" id="heroVideoPlaceholder">
+              <div class="play-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <p id="heroVideoHint">Видео скоро появится</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="scroll-hint">
+      <span data-i18n="scrollDown">Листай вниз</span>
+      <span class="scroll-mouse"><i></i></span>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ MARQUEE ═════ -->
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track" id="marqueeTrack">
+    <span>FPS BOOST</span><b>✦</b>
+    <span>CLICKGUI</span><b>✦</b>
+    <span>CONFIGS</span><b>✦</b>
+    <span>THEMES</span><b>✦</b>
+    <span>FABRIC 1.21.11</span><b>✦</b>
+    <span>UPDATES</span><b>✦</b>
+    <span>SUPPORT 24/7</span><b>✦</b>
+  </div>
+</div>
+
+<!-- ═════ FEATURES ═════ -->
+<section id="features">
+  <div class="container">
+
+    <div class="section-header reveal">
+      <div class="section-eyebrow" data-i18n="eyebrowFeatures">Преимущества</div>
+      <h2 class="section-title" data-i18n="sectionFeatures">Почему SnowClient</h2>
+      <p class="section-subtitle" data-i18n="featuresSubtitle">Всё, что ты получаешь сразу после покупки.</p>
+    </div>
+
+    <div class="features-grid" id="featuresGrid"></div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═════ VIDEO ═════ -->
+<section id="video">
+  <div class="container">
+    <div class="video-section-container">
+
+      <div class="reveal">
+        <div class="section-eyebrow" data-i18n="eyebrowVideo">Видео</div>
+        <h2 class="section-title" data-i18n="sectionVideo">Видеообзор</h2>
+        <p class="section-subtitle" data-i18n="videoSubtitle">Посмотри, как SnowClient выглядит и работает в реальной игре.</p>
+
+        <div class="video-bullets">
+          <div class="video-bullet">
+            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
+            <span class="video-bullet-text" data-i18n="videoBullet1">Реальный геймплей без монтажа</span>
+          </div>
+          <div class="video-bullet">
+            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
+            <span class="video-bullet-text" data-i18n="videoBullet2">Показ всех ключевых функций</span>
+          </div>
+          <div class="video-bullet">
+            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
+            <span class="video-bullet-text" data-i18n="videoBullet3">Настройка интерфейса в деталях</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal reveal-d2">
+        <div class="video-embed-wrap" id="videoContainer">
+          <div class="video-embed-placeholder">
+            <div class="play-icon-wrap">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+            <p id="videoPlaceholderText">Видео скоро появится здесь</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═════ SCREENSHOTS ═════ -->
+<section id="screenshots">
+  <div class="container">
+
+    <div class="section-header reveal">
+      <div class="section-eyebrow" data-i18n="eyebrowScreens">Галерея</div>
+      <h2 class="section-title" data-i18n="sectionScreenshots">Скриншоты</h2>
+      <p class="section-subtitle" data-i18n="screenshotsSubtitle">Несколько кадров прямо из игры.</p>
+    </div>
+
+    <div class="screenshots-grid" id="screenshotsGrid"></div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═════ PRICING ═════ -->
+<section id="pricing">
+  <div class="container">
+
+    <div class="section-header reveal">
+      <div class="section-eyebrow" data-i18n="eyebrowPricing">Тарифы</div>
+      <h2 class="section-title" data-i18n="sectionPricing">Тарифы</h2>
+      <p class="section-subtitle" data-i18n="pricingSubtitle">Выбери подходящий план. Во всех планах доступен полный функционал.</p>
+    </div>
+
+    <div class="pricing-grid" id="pricingGrid"></div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═════ SUPPORT ═════ -->
+<section id="support">
+  <div class="container">
+
+    <div class="section-header reveal" style="text-align:center;">
+      <div class="section-eyebrow" style="justify-content:center;" data-i18n="eyebrowSupport">Контакты</div>
+      <h2 class="section-title" data-i18n="sectionSupport">Поддержка</h2>
+      <p class="section-subtitle" data-i18n="supportSubtitle" style="margin:0 auto;">Остались вопросы? Напиши нам — поможем.</p>
+    </div>
+
+    <div class="support-grid">
+
+      <a class="support-card spot reveal reveal-d1" id="supportEmailCard" href="#">
+        <div class="support-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <rect x="2" y="4" width="20" height="16" rx="2.5"/>
+            <path d="M2 7l10 7 10-7"/>
+          </svg>
+        </div>
+        <div class="support-label" data-i18n="supportEmail">Почта для связи</div>
+        <div class="support-value" id="supportEmailVal"></div>
+        <div class="support-hours" id="supportHoursVal"></div>
+      </a>
+
+      <a class="support-card spot reveal reveal-d2" id="supportDiscordCard" href="#" target="_blank" rel="noopener">
+        <div class="support-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11.5a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z"/>
+            <path d="M19.27 5.33A17.75 17.75 0 0014.94 4c-.18.33-.38.77-.52 1.12a16.36 16.36 0 00-4.84 0A11.2 11.2 0 009.06 4 17.8 17.8 0 004.73 5.33C2.02 9.46 1.27 13.48 1.65 17.45A17.87 17.87 0 007.1 20c.42-.57.79-1.17 1.11-1.81a11.6 11.6 0 01-1.74-.84l.42-.33a12.73 12.73 0 0010.22 0l.43.33c-.55.33-1.14.61-1.75.84.32.64.69 1.24 1.11 1.81a17.83 17.83 0 005.45-2.55c.44-4.53-.75-8.52-3.08-12.17z"/>
+          </svg>
+        </div>
+        <div class="support-label" data-i18n="supportDiscord">Discord</div>
+        <div class="support-value">Discord Server</div>
+      </a>
+
+      <a class="support-card spot reveal reveal-d3" id="supportTelegramCard" href="#" target="_blank" rel="noopener">
+        <div class="support-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 3.5L2.5 10.5l6.5 2 2 6.5 3-4 5.5 4z"/>
+            <path d="M9 12.5l9-9"/>
+          </svg>
+        </div>
+        <div class="support-label" data-i18n="supportTelegram">Telegram</div>
+        <div class="support-value">Telegram Channel</div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═════ FOOTER ═════ -->
+<footer class="footer">
+  <div class="footer-inner">
+
+    <div class="footer-brand">
+      <div class="footer-brand-name">
+        <span class="logo-flake">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
+            <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
+          </svg>
+        </span>
+        SnowClient
+      </div>
+      <p class="footer-tagline" id="footerTagline">Чистая игра. Высокий FPS. Твой стиль.</p>
+    </div>
+
+    <div class="footer-col">
+      <h4 data-i18n="footerNav">Навигация</h4>
+      <ul>
+        <li><a href="#hero"     data-i18n="nav0">Главная</a></li>
+        <li><a href="#features" data-i18n="nav1">Функции</a></li>
+        <li><a href="#video"    data-i18n="nav2">Видеообзор</a></li>
+        <li><a href="#pricing"  data-i18n="nav3">Купить</a></li>
+        <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
+      </ul>
+    </div>
+
+    <div class="footer-col">
+      <h4 data-i18n="footerLegal">Документы</h4>
+      <ul>
+        <li><a onclick="openModal('privacy')" data-i18n="footerPrivacy">Обработка персональных данных</a></li>
+        <li><a onclick="openModal('terms')"   data-i18n="footerTerms">Пользовательское соглашение</a></li>
+        <li><a onclick="openModal('rules')"   data-i18n="footerRules">Правила пользования</a></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <div class="footer-bottom">
+    <p id="footerCopy"></p>
+    <div class="footer-socials">
+      <a href="#" id="footerDiscord" target="_blank">Discord</a>
+      <a href="#" id="footerTelegram" target="_blank">Telegram</a>
+    </div>
+  </div>
+
+  <div class="footer-mark" aria-hidden="true">SnowClient</div>
+</footer>
+
+<!-- ═════ MODALS ═════ -->
+<div class="modal-overlay" id="modalPrivacy" onclick="closeModalOutside(event,'modalPrivacy')">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 data-i18n="footerPrivacy">Обработка персональных данных</h3>
+      <button class="modal-close" onclick="closeModal('privacy')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-placeholder">
+        <div class="modal-placeholder-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h4 data-i18n="modalPlaceholderTitle">Документ в разработке</h4>
+        <p data-i18n="modalPrivacyDesc">Политика обработки персональных данных скоро будет опубликована.</p>
+        <code class="modal-hint">config.js → legal.privacy</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalTerms" onclick="closeModalOutside(event,'modalTerms')">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 data-i18n="footerTerms">Пользовательское соглашение</h3>
+      <button class="modal-close" onclick="closeModal('terms')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-placeholder">
+        <div class="modal-placeholder-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <h4 data-i18n="modalPlaceholderTitle">Документ в разработке</h4>
+        <p data-i18n="modalTermsDesc">Пользовательское соглашение скоро будет опубликовано.</p>
+        <code class="modal-hint">config.js → legal.terms</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalRules" onclick="closeModalOutside(event,'modalRules')">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 data-i18n="footerRules">Правила пользования</h3>
+      <button class="modal-close" onclick="closeModal('rules')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-placeholder">
+        <div class="modal-placeholder-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <h4 data-i18n="modalPlaceholderTitle">Документ в разработке</h4>
+        <p data-i18n="modalRulesDesc">Правила пользования скоро будут опубликованы.</p>
+        <code class="modal-hint">config.js → legal.rules</code>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalPayment" onclick="closeModalOutside(event,'modalPayment')">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="paymentPopupTitle">Оформление покупки</h3>
+      <button class="modal-close" onclick="closeModal('payment')">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="payment-popup-content">
+        <p id="paymentPopupBody">Чтобы оформить покупку, напиши нам:</p>
+        <a id="paymentPopupLink" href="#" target="_blank" rel="noopener" class="payment-popup-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 3.5L2.5 10.5l6.5 2 2 6.5 3-4 5.5 4z"/></svg>
+          Написать нам
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═════ AUTH MODAL ═════ -->
+<div class="modal-overlay" id="modalAuth" onclick="closeModalOutside(event,'modalAuth')">
+  <div class="modal glass auth-modal">
+    <div class="modal-header">
+      <div class="auth-tabs" id="authTabs" role="tablist">
+        <span class="auth-tab-indicator" id="authIndicator"></span>
+        <button class="auth-tab active" id="tabLogin" role="tab" type="button" onclick="switchAuthTab('login')" data-i18n="authLogin">Вход</button>
+        <button class="auth-tab" id="tabRegister" role="tab" type="button" onclick="switchAuthTab('register')" data-i18n="authRegister">Регистрация</button>
+      </div>
+      <button class="modal-close" type="button" onclick="closeModal('auth')" aria-label="Close">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="auth-sub" id="authSub" data-i18n="authSubLogin">С возвращением.</p>
+
+      <form class="auth-form" id="authForm" onsubmit="submitAuth(event)" novalidate>
+        <label class="field field-register" id="fieldUsername">
+          <input type="text" id="authUsername" autocomplete="username" maxlength="20" placeholder=" " />
+          <span data-i18n="authUsername">Никнейм</span>
+        </label>
+        <label class="field" id="fieldIdent">
+          <input type="text" id="authIdent" autocomplete="username" placeholder=" " />
+          <span id="authIdentLabel" data-i18n="authIdent">Email или ник</span>
+        </label>
+        <label class="field">
+          <input type="password" id="authPassword" autocomplete="current-password" placeholder=" " />
+          <span id="authPasswordLabel" data-i18n="authPassword">Пароль</span>
+        </label>
+        <label class="field field-register" id="fieldReferral">
+          <input type="text" id="authReferral" autocomplete="off" placeholder=" " />
+          <span data-i18n="authReferral">Промокод</span>
+        </label>
+
+        <div class="auth-error" id="authError" role="alert"></div>
+
+        <button class="btn btn-primary auth-submit" id="authSubmit" type="submit">
+          <span class="spinner"></span>
+          <span id="authSubmitLabel" data-i18n="authSubmitLogin">Войти</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ═════ CABINET MODAL ═════ -->
+<div class="modal-overlay" id="modalCabinet" onclick="closeModalOutside(event,'modalCabinet')">
+  <div class="modal glass cabinet-modal">
+    <div class="modal-header">
+      <h3 data-i18n="cabTitle">Личный кабинет</h3>
+      <button class="modal-close" type="button" onclick="closeModal('cabinet')" aria-label="Close">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+
+      <div class="cab-user">
+        <div class="cab-avatar" id="cabAvatar">?</div>
+        <div class="cab-user-info">
+          <div class="cab-name" id="cabName">—</div>
+          <div class="cab-email" id="cabEmail"></div>
+        </div>
+        <span class="cab-role" id="cabRole">user</span>
+      </div>
+
+      <div class="cab-stats">
+        <div class="cab-stat spot">
+          <div class="cab-stat-label" data-i18n="cabBalance">Баланс</div>
+          <div class="cab-stat-value" id="cabBalance">0.00</div>
+        </div>
+        <div class="cab-stat spot" id="cabRefBox" onclick="copyRefCode()" title="Copy">
+          <div class="cab-stat-label" data-i18n="cabRef">Реферальный код</div>
+          <div class="cab-stat-value cab-ref" id="cabRef">—</div>
+        </div>
+      </div>
+
+      <div class="cab-section">
+        <h4 data-i18n="cabPurchases">Мои покупки</h4>
+        <ul class="cab-purchases" id="cabPurchases"></ul>
+      </div>
+
+      <div class="cab-section">
+        <h4 data-i18n="cabKey">Активация ключа</h4>
+        <form class="cab-key" onsubmit="activateKey(event)">
+          <input type="text" id="cabKeyInput" class="cab-key-input" autocomplete="off" spellcheck="false" data-ph="cabKeyPh" placeholder="XXXX-XXXX-XXXX" />
+          <button class="btn btn-primary" id="cabKeyBtn" type="submit"><span class="spinner"></span><span data-i18n="cabActivate">Активировать</span></button>
+        </form>
+      </div>
+
+      <div class="cab-actions">
+        <a class="btn btn-outline" id="cabAdminBtn" href="/admin" hidden data-i18n="cabAdmin">Админ-панель</a>
+        <button class="btn btn-outline cab-logout" type="button" onclick="logout()" data-i18n="cabLogout">Выйти</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span id="toastMsg"></span></div>
+
+<script src="config.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
