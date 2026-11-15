@@ -11,13 +11,13 @@ const fmt = d => d ? String(d).replace('T', ' ').slice(0, 16) : '—';
 const money = n => (+n || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽';
 const debounce = (f, ms = 150) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => f(...a), ms); }; };
 
-// Токен живёт только в sessionStorage: закрыл вкладку — вышел. Старый токен из localStorage удаляем.
+// Токен админки живёт только в sessionStorage (закрыл вкладку — вышел) и не смешивается
+// с токеном сайта в localStorage: кража сайтового токена не даёт доступа к админке.
 const ss = {
   get: k => { try { return sessionStorage.getItem(k); } catch { return null; } },
   set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} },
   del: k => { try { sessionStorage.removeItem(k); } catch {} }
 };
-try { localStorage.removeItem(TK); } catch {}
 
 let tok = ss.get(TK), me = null, prods = [], users = [], navId = 0, tick = null, last = Date.now();
 let tab = TABS[location.hash.slice(1)] ? location.hash.slice(1) : 'stats';
@@ -419,7 +419,7 @@ function sec() {
   $('#m').innerHTML = `<h2>Безопасность</h2>
   <div class="box stack" style="max-width:420px;margin-bottom:14px"><b>Сессия</b><p class="mut">Вход: ${fmt(new Date(t0 - new Date().getTimezoneOffset() * 6e4).toISOString())} · автовыход: ${fmt(new Date(end - new Date().getTimezoneOffset() * 6e4).toISOString())}<br>Также выход через 15 минут бездействия. Токен хранится только в этой вкладке.</p><button class="g" id="all">Завершить все мои сессии</button></div>
   <form class="box stack" id="f" style="max-width:420px"><b>2FA включена ✓</b><p class="mut">Чтобы отключить 2FA — пароль и текущий код.</p><input name="p" type="password" placeholder="Пароль" autocomplete="current-password" required><input name="c" inputmode="numeric" placeholder="Код 2FA" autocomplete="off" required><button class="d" id="go">Отключить 2FA</button></form>`;
-  $('#all').onclick = async e => { if (confirm('Завершить все ваши сессии на всех устройствах?') && await act(() => api('/api/admin/users/logout', 'POST', { userId: me.id }), null, e.target)) forget('Сессии завершены'); };
+  $('#all').onclick = async e => { if (confirm('Завершить все ваши сессии на всех устройствах?') && await act(() => api('/api/admin/users/logout', 'POST', { userId: me.id }), null, e.target)) logout('Сессии завершены'); };
   $('#f').onsubmit = async e => {
     e.preventDefault();
     if (!confirm('Отключить 2FA? Админка закроется, пока не включите снова.')) return;

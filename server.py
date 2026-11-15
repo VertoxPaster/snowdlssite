@@ -17,7 +17,7 @@ import psycopg2.pool
 import time
 import urllib.error
 import urllib.request
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, unquote
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 ORIGIN = "https://pulsevisuals.pro"
@@ -256,15 +256,23 @@ def fetch_cosmetics():
 
 
 def find_product(pid):
+    try:
+        pid = int(pid or 0)
+    except (TypeError, ValueError):
+        return None
     for p in fetch_products():
-        if int(p.get("id") or 0) == int(pid or 0):
+        if int(p.get("id") or 0) == pid:
             return p
     return None
 
 
 def find_cosmetic(cid):
+    try:
+        cid = int(cid or 0)
+    except (TypeError, ValueError):
+        return None
     for c in fetch_cosmetics():
-        if int(c.get("id") or 0) == int(cid or 0):
+        if int(c.get("id") or 0) == cid:
             return c
     return None
 
@@ -664,12 +672,19 @@ def save_upload(h, body, field):
         data = data.rstrip(b"\r\n")
         if not data:
             continue
-        fm = re.search(rb'filename="([^"]*)"', header)
-        fname = fm.group(1).decode(errors="ignore") if fm else ""
-        ext = os.path.splitext(fname)[1].lower()
-        if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
+        if len(data) > 2 * 1024 * 1024:
+            return None
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
             ext = ".png"
-        rel = "/uploads/local/%s_%d%s" % (field, int(time.time() * 1000), ext)
+        elif data.startswith(b"\xff\xd8\xff"):
+            ext = ".jpg"
+        elif data[:6] in (b"GIF87a", b"GIF89a"):
+            ext = ".gif"
+        elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+            ext = ".webp"
+        else:
+            return None  # не картинка
+        rel = "/uploads/local/%s_%s%s" % (field, secrets.token_hex(8), ext)
         abs_path = os.path.join(ROOT, "uploads", "local")
         os.makedirs(abs_path, exist_ok=True)
         with open(os.path.join(abs_path, os.path.basename(rel)), "wb") as f:
@@ -888,14 +903,26 @@ def keys_activate(h, body, user):
     if not require(user):
         return h.json_out({"message": "Не авторизован"}, 401)
     key = str(body.get("key") or "").strip().upper()
-    row = _db1("SELECT * FROM keys WHERE upper(key)=?", (key,))
+    k_u, k_ip = "key_u:%s" % user["id"], "key_ip:" + h.client_ip()
+    if throttled(k_u, 10, 900) or throttled(k_ip, 30, 900):
+        return h.json_out({"message": "Слишком много попыток. Подождите 15 минут"}, 429)
+    if not key or len(key) > 64:
+        return h.json_out({"message": "Ключ недействителен или уже использован"}, 400)
+    # атомарно «забираем» ключ: два одновременных запроса не активируют его дважды
+    row = _db1(
+        "UPDATE keys SET used_by=?, used_at=? WHERE upper(key)=? AND used_by IS NULL RETURNING key, product_id",
+        (user["id"], now_iso(), key),
+    )
     if not row:
-        return h.json_out({"message": "Ключ не найден"}, 400)
-    if row["used_by"]:
-        return h.json_out({"message": "Ключ уже использован"}, 400)
+        note_fail(k_u)
+        note_fail(k_ip)
+        return h.json_out({"message": "Ключ недействителен или уже использован"}, 400)
     prod = find_product(row["product_id"]) or {"id": row["product_id"], "title": "Подписка SnowClient #%s" % row["product_id"], "price": 0}
-    grant_product(user["id"], prod, "key")
-    _db("UPDATE keys SET used_by=?, used_at=? WHERE key=?", (user["id"], now_iso(), row["key"]))
+    try:
+        grant_product(user["id"], prod, "key")
+    except Exception:
+        _db("UPDATE keys SET used_by=NULL, used_at=NULL WHERE key=?", (row["key"],))
+        raise
     product = {"id": prod.get("id"), "title": prod.get("title")}
     return h.json_out({"success": True, "data": {"product": dict(product)}, "product": dict(product)})
 
@@ -1113,22 +1140,22 @@ def admin_grant(h, body, user):
         u = get_user_by_id(uid)
         return h.json_out({"success": True, "message": "Начислено %.2f ₽" % amt, "data": user_json(u)})
     if "productId" in body:
-        prod = find_product(body.get("productId")) or {
-            "id": int(body.get("productId") or 1),
-            "title": "Подписка SnowClient",
-            "price": 0,
-        }
-        grant_product(uid, prod, "admin")
+        prod = find_product(body.get("productId"))
+        if not prod:
+            return h.json_out({"message": "Товар не найден"}, 400)
+        audit(user, "grant_product", "user=%s product=%s" % (uid, prod.get("id")))
+        grant_product(target["id"], prod, "admin")
         return h.json_out({"success": True, "message": "Выдан: %s" % prod.get("title")})
     if "cosmeticId" in body:
         try:
             cid = int(body.get("cosmeticId"))
         except (TypeError, ValueError):
             return h.json_out({"message": "Некорректная косметика"}, 400)
+        audit(user, "grant_cosmetic", "user=%s cosmetic=%s" % (uid, cid))
         if not _db1("SELECT 1 FROM inventory WHERE user_id=? AND cosmetic_id=?", (uid, cid)):
             _db(
                 "INSERT INTO inventory(user_id,cosmetic_id,active,granted_at) VALUES(?,?,0,?)",
-                (uid, cid, now_iso()),
+                (target["id"], cid, now_iso()),
             )
         return h.json_out({"success": True, "message": "Косметика #%d выдана" % cid})
     return h.json_out({"message": "Нечего выдавать"}, 400)
@@ -1138,7 +1165,10 @@ def admin_grant(h, body, user):
 def admin_keys(h, body, user):
     if not require_admin(user):
         return h.json_out({"message": "Доступ только для админа"}, 403)
-    pid = int(body.get("productId") or 1)
+    prod = find_product(body.get("productId"))
+    if not prod:
+        return h.json_out({"message": "Товар не найден"}, 400)
+    pid = int(prod["id"])
     try:
         count = max(1, min(int(body.get("count") or 1), 100))
     except (TypeError, ValueError):
@@ -1242,7 +1272,14 @@ def note_fail(key):
     with _fl:
         _fails.setdefault(key, []).append(time.time())
         if len(_fails) > 20000:
-            _fails.clear()
+            # выкидываем только пустые/старые записи; счётчики 2FA и свежие блокировки не трогаем
+            cutoff = time.time() - 3600
+            for k in [k for k, v in _fails.items() if not v or v[-1] < cutoff]:
+                del _fails[k]
+            if len(_fails) > 20000:
+                old = sorted((k for k in _fails if not k.startswith("mfa:")), key=lambda k: _fails[k][-1])
+                for k in old[:5000]:
+                    del _fails[k]
 
 
 def migrate():
@@ -1445,6 +1482,8 @@ def admin_kick(h, body, user):
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    timeout = 30  # защита от «медленных» соединений
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=ROOT, **kwargs)
 
@@ -1464,6 +1503,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Strict-Transport-Security", "max-age=31536000")
+        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
         clean_path = self.path.split("?")[0]
         if clean_path in (
             "/admin", "/admin/", "/admin.html", "/admin.js",
@@ -1492,7 +1533,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if "multipart/form-data" in (self.headers.get("Content-Type") or ""):
             return raw
         try:
-            return json.loads(raw.decode("utf-8"))
+            data = json.loads(raw.decode("utf-8"))
+            return data if isinstance(data, dict) else {}
         except Exception:
             return {}
 
@@ -1547,14 +1589,40 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     "/favicon.ico", "/manifest.json", "/robots.txt",
 )
 
+    BLOCKED_EXT = (".exe", ".py", ".pyc", ".env", ".sql", ".db", ".sqlite", ".pem", ".key", ".log", ".bak", ".txt", ".md")
+    STATIC_DIRS = ("static", "uploads/local", "assets", "fonts")
+
+    def _static_target(self, clean):
+        """Путь к файлу, который МОЖНО отдать, иначе None.
+        Защита: нет '..', нет скрытых файлов, нет выхода за разрешённые папки (realpath),
+        закрытые расширения (.exe отдаётся только через /api/loader/download)."""
+        rel = unquote(clean)
+        if "\x00" in rel or "\\" in rel or not rel.startswith("/"):
+            return None
+        parts = [p for p in rel.split("/") if p]
+        if any(p in (".", "..") or p.startswith(".") for p in parts):
+            return None
+        real_root = os.path.realpath(ROOT)
+        fs = os.path.realpath(os.path.join(real_root, *parts))
+        if rel in self.STATIC_FILES:
+            ok = fs == os.path.join(real_root, *parts)
+        else:
+            ok = any(
+                rel.startswith("/" + d + "/") and fs.startswith(os.path.join(real_root, *d.split("/")) + os.sep)
+                for d in self.STATIC_DIRS
+            )
+        if not ok or not os.path.isfile(fs):
+            return None
+        if rel not in self.STATIC_FILES and fs.lower().endswith(self.BLOCKED_EXT):
+            return None
+        return fs
+
     def _serve_static(self):
         clean = urlsplit(self.path).path
         if clean == "/":
-            self.path = "/index.html"
             clean = "/index.html"
-        allowed = clean in self.STATIC_FILES or clean.startswith(self.STATIC_OK)
-        fs = self.translate_path(self.path)
-        if allowed and os.path.isfile(fs):
+        if self._static_target(clean):
+            self.path = clean
             return super().do_GET()
         if "." in os.path.basename(clean):
             return self.send_error(404)
