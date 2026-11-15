@@ -1541,11 +1541,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     STATIC_OK = ("/static/", "/uploads/local/", "/assets/", "/fonts/")
     STATIC_FILES = (
-        "/", "/index.html", "/admin.html", "/admin.js",
-        "/cabinet.html", "/cabinet.js",
-        "/style.css", "/script.js", "/config.js",
-        "/favicon.ico", "/manifest.json", "/robots.txt",
-    )
+    "/", "/index.html", "/admin.html", "/admin.js",
+    "/cabinet.html", "/cabinet.js", "/loader-auth.js",
+    "/style.css", "/script.js", "/config.js",
+    "/favicon.ico", "/manifest.json", "/robots.txt",
+)
 
     def _serve_static(self):
         clean = urlsplit(self.path).path
