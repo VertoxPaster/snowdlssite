@@ -1405,6 +1405,17 @@ def migrate():
     _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS mfa_at DOUBLE PRECISION NOT NULL DEFAULT 0", (), False)
     _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'web'", (), False)
     _run("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT)", (), False)
+    _run(
+        "CREATE TABLE IF NOT EXISTS audit(id SERIAL PRIMARY KEY, ts TEXT NOT NULL, admin_id INTEGER,"
+        " admin_name TEXT, action TEXT NOT NULL, detail TEXT)", (), False)
+    for col in (
+        "ts TEXT",
+        "admin_id INTEGER",
+        "admin_name TEXT",
+        "action TEXT",
+        "detail TEXT",
+    ):
+        _run("ALTER TABLE audit ADD COLUMN IF NOT EXISTS " + col, (), False)
     # однократно: старые токены лежали в БД открытым текстом — сбрасываем все сессии
     if not _db1("SELECT 1 FROM meta WHERE k='tokens_hashed'"):
         _run("DELETE FROM tokens", (), False)
