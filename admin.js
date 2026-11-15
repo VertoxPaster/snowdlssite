@@ -254,7 +254,10 @@ async function userDlg(u) {
     const expMs = s.expires_at ? new Date(s.expires_at).getTime() : null;
     const isLife = !s.expires_at;
     const isActive = isLife || expMs > now;
-    const badge = isLife
+    const isReset = !!s.expires_at && s.expires_at.startsWith('1970');
+    const badge = isReset
+      ? '<span class="tag warn">Сброс HWID (разовое)</span>'
+      : isLife
       ? '<span class="tag admin">Lifetime</span>'
       : (isActive ? `<span class="tag ok">Активна до ${fmt(s.expires_at)}</span>` : `<span class="tag ban">Истекла ${fmt(s.expires_at)}</span>`);
     const dateVal = s.expires_at ? s.expires_at.slice(0, 10) : '';
@@ -309,7 +312,7 @@ async function userDlg(u) {
   </div>
   ${cosList.length ? `<div class="row" style="gap:6px">${cosList.map(c => `<span class="tag">#${c.cosmetic_id} <a href="#" data-del-cos="${c.cosmetic_id}" style="color:var(--bad);margin-left:4px" title="Забрать">✕</a></span>`).join('')}</div>` : ''}
 
-  <div class="row"><label>HWID устройства<input value="${esc(u.hwid || 'Не привязан')}" readonly></label>${u.hwid ? `<button type="button" class="g" data-a="rhwid" style="align-self:end">Сбросить HWID</button>` : ''}</div><hr>
+  <div class="row"><label>HWID устройства<input value="${esc(u.hwid || 'Не привязан')}" readonly></label>${u.hwid ? `<button type="button" class="g" data-a="rhwid" style="align-self:end">Сбросить HWID</button>` : ''}<button type="button" class="g" data-a="khwid" style="align-self:end">Создать ключ сброса HWID</button></div><div id="khout"></div><hr>
   <div class="row"><button type="button" class="g" data-a="kick">Завершить сессии</button>${isA ? '' : `<button type="button" class="g" data-a="ban">${u.banned ? 'Разбанить' : 'Забанить'}</button><button type="button" class="d" data-a="del">Удалить аккаунт</button>`}</div>
   </form>`;
   if (!d.open) d.showModal();
@@ -400,6 +403,12 @@ async function userDlg(u) {
       if (!/^\d+$/.test(cid) || +cid < 1) return bad('Введите корректный ID косметики');
       r = await act(() => api('/api/admin/users/grant', 'POST', { userId: id, cosmeticId: cid }), 'Косметика выдана', b);
     }
+    if (a === 'khwid') {
+      const hp = prods.find(p => p.type === 'hwid_reset'); if (!hp) return bad('Товар «Сброс HWID» не найден');
+      const j = await act(() => api('/api/admin/keys', 'POST', { productId: hp.id, count: 1 }), null, b);
+      if (j?.key) { lastKeys = j.keys; $('#khout').innerHTML = `<div class="mono">${esc(j.key)}</div><button type="button" class="g s" id="khc" style="margin-top:6px">Копировать ключ</button>`; $('#khc').onclick = () => copy(j.key, 'Ключ скопирован'); toast('Ключ сброса HWID создан'); }
+      return;
+    }
     if (a === 'rhwid') { if (!confirm('Сбросить HWID?')) return; r = await act(() => api('/api/admin/users/update', 'POST', { userId: id, reset_hwid: true }), 'HWID сброшен', b); }
     if (a === 'kick') { if (!confirm('Завершить все сессии ' + u.username + '?')) return; r = await act(() => api('/api/admin/users/logout', 'POST', { userId: id }), 'Сессии завершены', b); }
     if (a === 'ban') { if (!confirm(`${u.banned ? 'Разбанить' : 'Забанить'} ${u.username}?`)) return; r = await act(() => api('/api/admin/users/ban', 'POST', { userId: id, banned: !u.banned }), 'Готово', b); }
@@ -430,6 +439,7 @@ async function keysTab() {
       <input id="kn" type="number" min="1" max="100" value="1" style="max-width:95px" title="Количество">
       <input id="kcustom" placeholder="Свой ключ (если 1 шт., необязательно)" style="max-width:260px">
       <button id="kg" ${prods.length ? '' : 'disabled'}>Создать</button>
+      <button id="kh" class="g" ${prods.some(p => p.type === 'hwid_reset') ? '' : 'disabled'}>Ключ сброса HWID</button>
     </div>
     <div id="kout"></div>
   </div>
@@ -492,6 +502,11 @@ async function keysTab() {
     if (!Number.isInteger(cnt) || cnt < 1 || cnt > 100) return toast('Количество: от 1 до 100', true);
     const j = await act(() => api('/api/admin/keys', 'POST', { productId: pid, count: cnt, ...(cnt === 1 && custom ? { key: custom } : {}) }), null, e.target);
     if (j) { lastKeys = j.keys; $('#kcustom').value = ''; showNew(); toast(`Создано ключей: ${j.keys.length}`); load(); }
+  };
+  $('#kh').onclick = async e => {
+    const hp = prods.find(p => p.type === 'hwid_reset'); if (!hp) return toast('Товар «Сброс HWID» не найден', true);
+    const j = await act(() => api('/api/admin/keys', 'POST', { productId: hp.id, count: 1 }), null, e.target);
+    if (j) { lastKeys = j.keys; showNew(); toast('Ключ сброса HWID создан'); load(); }
   };
   showNew(); await load();
 }

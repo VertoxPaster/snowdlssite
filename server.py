@@ -277,6 +277,7 @@ def fetch_products():
         {"id": 2, "title": "SnowClient — 3 Месяца", "price": 699, "duration": 90},
         {"id": 3, "title": "SnowClient — 6 Месяцев", "price": 1199, "duration": 180},
         {"id": 4, "title": "SnowClient — Lifetime", "price": 2499, "duration": None},
+        {"id": 5, "title": "Сброс HWID", "price": 149, "duration": None, "type": "hwid_reset"},
     ]
 
 
@@ -306,7 +307,29 @@ def find_cosmetic(cid):
     return None
 
 
+EXPIRED_TS = "1970-01-01T00:00:00.000Z"
+
+
+def is_hwid_reset(product):
+    return (product or {}).get("type") == "hwid_reset"
+
+
+def reset_user_hwid(user_id):
+    _db("UPDATE users SET hwid='', hwid_bound_at='' WHERE id=?", (user_id,))
+
+
 def grant_product(user_id, product, source):
+    if is_hwid_reset(product):
+        # Сброс HWID — НЕ подписка: пишем в историю уже «истёкшую» запись (иначе expires_at=NULL
+        # означал бы Lifetime) и сбрасываем привязку к ПК.
+        reset_user_hwid(user_id)
+        _db(
+            "INSERT INTO purchases(user_id,product_id,title,price,source,purchased_at,expires_at)"
+            " VALUES(?,?,?,?,?,?,?)",
+            (user_id, int(product.get("id") or 0), product.get("title") or "Сброс HWID",
+             float(product.get("price") or 0), source, now_iso(), EXPIRED_TS),
+        )
+        return
     title = (product or {}).get("title") or "Подписка SnowClient"
     price = float((product or {}).get("price") or 0)
     duration = (product or {}).get("duration")
@@ -637,6 +660,8 @@ def purchase_product(h, body, user):
     if not prod:
         return h.json_out({"message": "Товар не найден"}, 400)
     price = float(prod.get("price") or 0)
+    if is_hwid_reset(prod) and not (user.get("hwid") or "").strip():
+        return h.json_out({"message": "HWID не привязан — сбрасывать нечего"}, 400)
     ok = _db1(
         "UPDATE users SET balance=balance-?, total_purchases=total_purchases+?"
         " WHERE id=? AND balance>=? RETURNING id",
@@ -1010,6 +1035,10 @@ def keys_activate(h, body, user):
         return h.json_out({"message": "Слишком много попыток. Подождите 15 минут"}, 429)
     if not key or len(key) > 64:
         return h.json_out({"message": "Ключ недействителен или уже использован"}, 400)
+    # ключ сброса HWID не сжигаем, если сбрасывать нечего
+    peek = _db1("SELECT product_id FROM keys WHERE upper(key)=? AND used_by IS NULL", (key,))
+    if peek and is_hwid_reset(find_product(peek["product_id"])) and not (user.get("hwid") or "").strip():
+        return h.json_out({"message": "HWID не привязан — ключ сброса пока не нужен. Ключ не потрачен"}, 400)
     # атомарно «забираем» ключ: два одновременных запроса не активируют его дважды
     row = _db1(
         "UPDATE keys SET used_by=?, used_at=? WHERE upper(key)=? AND used_by IS NULL RETURNING key, product_id",
@@ -1189,7 +1218,7 @@ def admin_update(h, body, user):
         return h.json_out({"message": "Другого админа менять нельзя"}, 403)
     audit(user, "update_user", "user=%s fields=%s" % (uid, ",".join(k for k in body if k != "password" and k != "userId")) + (",password" if body.get("password") else ""))
     if body.get("reset_hwid"):
-        _db("UPDATE users SET hwid='', hwid_bound_at='' WHERE id=?", (uid,))
+        reset_user_hwid(target["id"])
     if "role" in body:
         role = str(body.get("role"))
         if role not in ("user", "beta_tester", "moderator", "admin"):
@@ -1249,7 +1278,8 @@ def admin_grant(h, body, user):
             return h.json_out({"message": "Товар не найден"}, 400)
         audit(user, "grant_product", "user=%s product=%s" % (uid, prod.get("id")))
         grant_product(target["id"], prod, "admin")
-        return h.json_out({"success": True, "message": "Выдан: %s" % prod.get("title")})
+        msg = "HWID сброшен" if is_hwid_reset(prod) else "Выдан: %s" % prod.get("title")
+        return h.json_out({"success": True, "message": msg})
     if "cosmeticId" in body:
         try:
             cid = int(body.get("cosmeticId"))
@@ -1498,6 +1528,8 @@ def migrate():
     if not _db1("SELECT 1 FROM meta WHERE k='tokens_hashed'"):
         _run("DELETE FROM tokens", (), False)
         _run("INSERT INTO meta(k,v) VALUES('tokens_hashed','1')", (), False)
+    # раньше покупка «Сброс HWID» (expires_at=NULL) выдавала Lifetime — гасим такие записи
+    _run("UPDATE purchases SET expires_at='1970-01-01T00:00:00.000Z' WHERE product_id=5 AND expires_at IS NULL", (), False)
     for ddl in (
         "CREATE INDEX IF NOT EXISTS tokens_user ON tokens(user_id)",
         "CREATE INDEX IF NOT EXISTS purchases_user ON purchases(user_id)",
@@ -1663,7 +1695,7 @@ def admin_products(h, body, user):
     if not require_admin(user):
         return h.json_out({"message": "Доступ только для админа"}, 403)
     prods = fetch_products()
-    out = [{"id": p.get("id"), "title": p.get("title"), "price": p.get("price")} for p in prods]
+    out = [{"id": p.get("id"), "title": p.get("title"), "price": p.get("price"), "type": p.get("type") or ""} for p in prods]
     if not out:
         out = [
             {"id": 1, "title": "SnowClient — 1 Месяц", "price": 299},
