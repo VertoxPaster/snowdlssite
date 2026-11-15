@@ -53,10 +53,10 @@ const CONFIG = {
 
   // ─── КОНТАКТЫ ────────────────────────────────────────────
   contact: {
-    email:   "ntfhelp@mail.ru",
-    hours:   "ПН–ПТ 10:00–18:00 МСК",
-    discord: "https://discord.gg/XXXXXXX",
-    telegram:"https://t.me/XXXXXXX"
+    email:   "snowclient-support@proton.me",
+    hours:   "ПН–ПТ 9:00–00:00 МСК",
+    discord: "https://discord.gg/7pJcgXMPKj",
+    telegram:"t.me/Snowdls"
   },
 
   // ─── ВИДЕО ───────────────────────────────────────────────
@@ -123,16 +123,17 @@ const CONFIG = {
   },
 
   // ─── ТАРИФЫ ──────────────────────────────────────────────
+ // ─── ТАРИФЫ ──────────────────────────────────────────────
   pricing: {
-    currency: "$",
+    currency: "₽",
     badge: {
       ru: "Популярно", en: "Popular", uk: "Популярно", pl: "Popularny", tr: "Popüler"
     },
     plans: [
       {
         id: "month",
-        duration: { ru:"1 Месяц",   en:"1 Month",   uk:"1 Місяць",  pl:"1 Miesiąc", tr:"1 Ay"      },
-        price:    9.99,
+        duration: { ru:"30 Дней",   en:"30 Days",   uk:"30 Днів",   pl:"30 Dni",     tr:"30 Gün"    },
+        price:    180,
         popular:  false,
         features: {
           ru: ["Все функции клиента", "Базовая поддержка", "Обновления включены"],
@@ -145,7 +146,7 @@ const CONFIG = {
       {
         id: "3months",
         duration: { ru:"3 Месяца",  en:"3 Months",  uk:"3 Місяці",  pl:"3 Miesiące", tr:"3 Ay"     },
-        price:    24.99,
+        price:    340,
         popular:  true,
         features: {
           ru: ["Все функции клиента", "Приоритетная поддержка", "Обновления включены", "Доступ к бета-версиям"],
@@ -158,20 +159,20 @@ const CONFIG = {
       {
         id: "6months",
         duration: { ru:"6 Месяцев", en:"6 Months",  uk:"6 Місяців", pl:"6 Miesięcy",  tr:"6 Ay"     },
-        price:    39.99,
+        price:    570,
         popular:  false,
         features: {
-          ru: ["Все функции клиента", "Приоритетная поддержка", "Обновления включены", "Доступ к бета-версиям", "Скидка 33%"],
-          en: ["All client features", "Priority support",        "Updates included",    "Beta access",           "33% off"],
-          uk: ["Всі функції клієнта", "Пріоритетна підтримка",   "Оновлення включені",  "Доступ до бета",         "Знижка 33%"],
-          pl: ["Wszystkie funkcje",   "Wsparcie priorytetowe",   "Aktualizacje wliczone","Dostęp do beta",         "33% zniżki"],
-          tr: ["Tüm özellikler",      "Öncelikli destek",        "Güncellemeler dahil",  "Beta erişimi",           "%33 indirim"]
+          ru: ["Все функции клиента", "Приоритетная поддержка", "Обновления включены", "Доступ к бета-версиям", "Выгодный тариф"],
+          en: ["All client features", "Priority support",        "Updates included",    "Beta access",           "Great value"],
+          uk: ["Всі функції клієнта", "Пріоритетна підтримка",   "Оновлення включені",  "Доступ до бета",         "Вигідний тариф"],
+          pl: ["Wszystkie funkcje",   "Wsparcie priorytetowe",   "Aktualizacje wliczone","Dostęp do beta",         "Korzystny plan"],
+          tr: ["Tüm özellikler",      "Öncelikli destek",        "Güncellemeler dahil",  "Beta erişimi",           "Avantajlı plan"]
         }
       },
       {
         id: "lifetime",
-        duration: { ru:"Lifetime",  en:"Lifetime",  uk:"Назавжди",  pl:"Na zawsze",  tr:"Ömür boyu" },
-        price:    79.99,
+        duration: { ru:"Навсегда",  en:"Lifetime",  uk:"Назавжди",  pl:"Na zawsze",  tr:"Ömür boyu" },
+        price:    800,
         popular:  false,
         features: {
           ru: ["Все функции клиента", "VIP поддержка 24/7", "Все обновления навсегда", "Ранний доступ", "Эксклюзивный ранг"],
@@ -185,17 +186,17 @@ const CONFIG = {
   },
 
   // ─── СИСТЕМА ОПЛАТЫ ──────────────────────────────────────
-  payment: {
-    funpayUrl: "https://funpay.com/lots/offer?id=78533148",
+ payment: {
+    funpayUrl: "https://funpay.com/users/9984257/",
     useRedirect: true,
     redirectUrls: {
-      month:     "https://funpay.com/lots/offer?id=78533148",
-      "3months": "https://funpay.com/lots/offer?id=78533148",
-      "6months": "https://funpay.com/lots/offer?id=78533148",
-      lifetime:  "https://funpay.com/lots/offer?id=78533148"
+      month:     "https://funpay.com/users/9984257/",
+      "3months": "https://funpay.com/users/9984257/",
+      "6months": "https://funpay.com/users/9984257/",
+      lifetime:  "https://funpay.com/users/9984257/"
     },
     usePopup: false,
-    popupContact: "https://t.me/XXXXXXX"
+    popupContact: "t.me/Snowdls"
   },
 
   // ─── ПЕРЕВОДЫ UI ─────────────────────────────────────────

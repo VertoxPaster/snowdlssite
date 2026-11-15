@@ -342,14 +342,16 @@ function observeRevealElements() {
 function countUp(el) {
   const target = parseFloat(el.getAttribute('data-count'));
   if (isNaN(target)) return;
-  if (REDUCED) { el.textContent = target.toFixed(2); return; }
+  const isInt = Number.isInteger(target);
+  if (REDUCED) { el.textContent = isInt ? String(target) : target.toFixed(2); return; }
 
   const dur = 1200;
   const t0 = performance.now();
   (function step(now) {
     const p = Math.min((now - t0) / dur, 1);
     const eased = 1 - Math.pow(1 - p, 4);
-    el.textContent = (target * eased).toFixed(2);
+    const val = target * eased;
+    el.textContent = isInt ? Math.round(val) : val.toFixed(2);
     if (p < 1) requestAnimationFrame(step);
   })(t0);
 }
@@ -532,13 +534,18 @@ function buildPricing() {
   grid.innerHTML = CONFIG.pricing.plans.map((plan, i) => {
     const dur   = plan.duration[currentLang] ?? plan.duration.ru;
     const feats = plan.features[currentLang] ?? plan.features.ru;
+    const isInt = Number.isInteger(plan.price);
+    const priceStr = isInt ? String(plan.price) : plan.price.toFixed(2);
+    const priceHtml = cur === '₽'
+      ? `<span data-count="${plan.price}">${priceStr}</span><span class="currency" style="margin-left:4px;">${cur}</span>`
+      : `<span class="currency">${cur}</span><span data-count="${plan.price}">${priceStr}</span>`;
 
     return `
       <div class="pricing-card spot ${plan.popular ? 'popular' : ''} reveal reveal-d${i + 1}">
         ${plan.popular ? `<div class="pricing-badge">${badge}</div>` : ''}
         <div class="pricing-duration">${dur}</div>
         <div class="pricing-price">
-          <span class="currency">${cur}</span><span data-count="${plan.price}">${plan.price.toFixed(2)}</span>
+          ${priceHtml}
         </div>
         <div class="pricing-period">${t.perPeriod}</div>
         <ul class="pricing-features">
@@ -556,7 +563,7 @@ function buildPricing() {
         <button
           class="btn ${plan.popular ? 'btn-primary' : 'btn-outline'}"
           style="width:100%;"
-          onclick="handleBuy('${plan.id}', '${dur}', '${cur}${plan.price.toFixed(2)}')"
+          onclick="handleBuy('${plan.id}', '${dur}', '${priceStr} ${cur}')"
         >
           ${t.btnBuy}
         </button>
