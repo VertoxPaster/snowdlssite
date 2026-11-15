@@ -132,7 +132,7 @@ function renderProfile() {
   const av = document.getElementById('cabAvatar');
   if (av) {
     if (u.avatar) {
-      av.innerHTML = `<img src="${esc(u.avatar)}" alt="" onerror="this.parentNode.textContent='${esc(uname.charAt(0))}'">`;
+      { av.textContent = uname.charAt(0); if (/^\/uploads\/local\/[\w.-]+$/.test(String(u.avatar))) { const img = document.createElement('img'); img.alt = ''; img.addEventListener('error', () => { av.textContent = uname.charAt(0); }); img.src = u.avatar; av.textContent = ''; av.append(img); } }
     } else {
       av.textContent = uname.charAt(0);
     }

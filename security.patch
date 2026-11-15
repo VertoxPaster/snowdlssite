@@ -1,0 +1,742 @@
+--- /mnt/user-data/uploads/server.py	2026-11-15 17:08:02.588120000 +0000
++++ server.py	2026-11-15 17:12:15.340263287 +0000
+@@ -13,30 +13,41 @@
+ import threading
+ import psycopg2
+ import psycopg2.extras
++import psycopg2.errors
+ import psycopg2.pool
++import sys
++import traceback
+ import time
+-import urllib.error
+-import urllib.request
+ from urllib.parse import urlsplit, unquote
+ 
+ ROOT = os.path.dirname(os.path.abspath(__file__))
+-ORIGIN = "https://pulsevisuals.pro"
++SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
++TRUST_PROXY = os.environ.get("TRUST_PROXY", "1") == "1"  # 0, если сервер доступен напрямую без прокси
+ DATABASE_URL = os.environ["DATABASE_URL"]
+ PORT = int(os.environ.get("PORT", "8080"))
+-MAX_BODY = 8 * 1024 * 1024
+-PROXY_HEADERS = ("Content-Type", "Accept", "Accept-Language")
+-BRAND_MAP = (
+-    (b"pulsevisuals.pro", b"t.me/flodzorx"),
+-    (b"PulseVisuals", b"Snowclient"),
+-    (b"Pulse ", b"Snowclient "),
+-    (b'"Pulse"', b'"Snowclient"'),
+-)
++MAX_JSON = 64 * 1024
++MAX_UPLOAD = 3 * 1024 * 1024
++UPLOAD_PATHS = ("/api/profile/me/avatar", "/api/profile/me/cover")
++MIN_PW, MAX_PW = 8, 128
++LOADER_TTL = 12 * 3600
++# Токен лоадера (scope='loader') может вызывать только эти методы
++LOADER_ALLOWED = {
++    ("GET", "/api/auth/me"),
++    ("GET", "/api/users/products"),
++    ("GET", "/api/loader/download"),
++}
+ 
+ _db_lock = threading.RLock()
+ _pool = psycopg2.pool.ThreadedConnectionPool(1, 8, DATABASE_URL)
++_pool_sem = threading.BoundedSemaphore(8)
+ 
+ 
+ def _run(sql, params=(), want_rows=True):
++    with _pool_sem:
++        return _run_inner(sql, params, want_rows)
++
++
++def _run_inner(sql, params=(), want_rows=True):
+     sql = sql.replace("?", "%s")
+     last = None
+     for attempt in range(2):
+@@ -148,6 +159,21 @@
+         return False
+ 
+ 
++_DUMMY = {}
++
++
++def _dummy_hash():
++    # одинаковое время ответа для существующего и несуществующего пользователя
++    if "h" not in _DUMMY:
++        _DUMMY["h"] = hash_password(secrets.token_hex(8))
++    return _DUMMY["h"]
++
++
++def _th(token):
++    """В БД хранится только SHA-256 токена: утечка таблицы tokens не даёт войти в аккаунты."""
++    return hashlib.sha256(token.encode()).hexdigest()
++
++
+ def now_iso():
+     return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + ".000Z"
+ 
+@@ -204,7 +230,8 @@
+ 
+ def public_user_json(u):
+     d = user_json(u)
+-    for k in ("email", "balance", "totalDeposits", "totalPurchases", "hwid", "hwid_bound_at"):
++    for k in ("email", "balance", "totalDeposits", "totalPurchases", "hwid", "hwid_bound_at",
++              "ref_code", "ref_uses", "ref_earned", "has_subscription", "is_blocked", "isBlocked"):
+         d.pop(k, None)
+     return d
+ 
+@@ -218,23 +245,25 @@
+ 
+ 
+ def get_user_by_token(token):
+-    if not token:
++    if not token or len(token) > 128:
+         return None
+-    row = _db1("SELECT user_id,created_at,mfa_at FROM tokens WHERE token=?", (token,))
++    token = _th(token)
++    row = _db1("SELECT user_id,created_at,mfa_at,scope FROM tokens WHERE token=?", (token,))
+     if not row:
+         return None
+     try:
+         born = calendar.timegm(time.strptime(row["created_at"][:19], "%Y-%m-%dT%H:%M:%S"))
+     except ValueError:
+         born = 0
+-    if time.time() - born > TOKEN_TTL:
++    ttl = TOKEN_TTL if row["scope"] == "web" else LOADER_TTL
++    if time.time() - born > ttl:
+         _db("DELETE FROM tokens WHERE token=?", (token,))
+         return None
+     u = get_user_by_id(row["user_id"])
+     if not u or u["banned"]:
+         return None
+     u = dict(u)
+-    u["_token"], u["_mfa_at"] = token, float(row["mfa_at"] or 0)
++    u["_token"], u["_mfa_at"], u["_scope"] = token, float(row["mfa_at"] or 0), row["scope"]
+     return u
+ 
+ 
+@@ -291,6 +320,12 @@
+         " VALUES(?,?,?,?,?,?,?)",
+         (user_id, int((product or {}).get("id") or 0), title, price, source, now_iso(), expires),
+     )
++    if source in ("buy", "key", "pay"):
++        r = _db1("UPDATE users SET ref_paid=1 WHERE id=? AND ref_paid=0 AND referred_by IS NOT NULL"
++                 " RETURNING referred_by", (user_id,))
++        if r:
++            _db("UPDATE users SET balance=balance+25, ref_uses=ref_uses+1, ref_earned=ref_earned+25 WHERE id=?",
++                (r["referred_by"],))
+     role = (product or {}).get("grant_role")
+     if role in ("beta_tester", "moderator"):
+         _db("UPDATE users SET role=? WHERE id=?", (role, user_id))
+@@ -355,6 +390,8 @@
+         return h.json_out({"status": "error", "message": "Введите логин и пароль"}, 400)
+     if not hwid or len(hwid) < 4 or len(hwid) > 128:
+         return h.json_out({"status": "error", "message": "Некорректный HWID устройства"}, 400)
++    if len(password) > MAX_PW or len(ident) > 254:
++        return h.json_out({"status": "error", "message": "Неверный логин или пароль"}, 401)
+ 
+     k_ip = "lnc_ip:" + h.client_ip()
+     k_id = "lnc_id:" + ident.lower()
+@@ -365,7 +402,8 @@
+         "SELECT * FROM users WHERE lower(username)=lower(?) OR lower(email)=lower(?)",
+         (ident, ident),
+     )
+-    if not u or not check_password(password, u["pass_hash"]):
++    pw_ok = check_password(password, u["pass_hash"] if u else _dummy_hash())
++    if not u or not pw_ok:
+         note_fail(k_ip)
+         note_fail(k_id)
+         return h.json_out({"status": "error", "message": "Неверный логин или пароль"}, 401)
+@@ -447,31 +485,38 @@
+         return h.json_out({"message": "Ник: 3-20 символов (латиница, цифры, _)"}, 400)
+     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+         return h.json_out({"message": "Некорректный email"}, 400)
+-    if len(password) < 6:
+-        return h.json_out({"message": "Пароль минимум 6 символов"}, 400)
+-    if _db1("SELECT id FROM users WHERE lower(username)=lower(?) OR email=?", (username, email)):
+-        return h.json_out({"message": "Пользователь с таким ником или email уже существует"}, 400)
++    if len(email) > 254:
++        return h.json_out({"message": "Некорректный email"}, 400)
++    if len(password) < MIN_PW or len(password) > MAX_PW:
++        return h.json_out({"message": "Пароль: от %d до %d символов" % (MIN_PW, MAX_PW)}, 400)
+     if throttled("reg:" + h.client_ip(), 5, 3600):
+         return h.json_out({"message": "Слишком много регистраций, попробуйте позже"}, 429)
+     note_fail("reg:" + h.client_ip())
+-    boot = os.environ.get("ADMIN_USERNAME", "").lower()
+-    role = "admin" if (boot and username.lower() == boot and not _db1("SELECT 1 FROM users WHERE role='admin'")) else "user"
++    if _db1("SELECT id FROM users WHERE lower(username)=lower(?) OR lower(email)=lower(?)", (username, email)):
++        return h.json_out({"message": "Пользователь с таким ником или email уже существует"}, 400)
++    # Первый админ: нужны и ник, и email из окружения (иначе его мог бы занять первый зашедший)
++    boot_u = os.environ.get("ADMIN_USERNAME", "").lower()
++    boot_e = os.environ.get("ADMIN_EMAIL", "").lower()
++    is_boot = bool(boot_u and boot_e and username.lower() == boot_u and email == boot_e
++                   and not _db1("SELECT 1 FROM users WHERE role='admin'"))
++    role = "admin" if is_boot else "user"
+     ref_code = "SNW" + secrets.token_hex(4).upper()
+-    uid = _db1(
+-        "INSERT INTO users(username,email,pass_hash,role,ref_code,created_at)"
+-        " VALUES(?,?,?,?,?,?) RETURNING id",
+-        (username, email, hash_password(password), role, ref_code, now_iso()),
+-    )["id"]
+-    ref = str(body.get("referralCode") or "").strip()
++    try:
++        uid = _db1(
++            "INSERT INTO users(username,email,pass_hash,role,ref_code,created_at)"
++            " VALUES(?,?,?,?,?,?) RETURNING id",
++            (username, email, hash_password(password), role, ref_code, now_iso()),
++        )["id"]
++    except psycopg2.errors.UniqueViolation:
++        return h.json_out({"message": "Пользователь с таким ником или email уже существует"}, 400)
++    # Бонус рефереру начисляется только после первой реальной покупки приглашённого (см. grant_product)
++    ref = str(body.get("referralCode") or "").strip()[:32]
+     if ref:
+         referrer = _db1("SELECT id FROM users WHERE ref_code=?", (ref,))
+         if referrer and referrer["id"] != uid:
+-            _db(
+-                "UPDATE users SET balance=balance+25, ref_uses=ref_uses+1, ref_earned=ref_earned+25 WHERE id=?",
+-                (referrer["id"],),
+-            )
++            _db("UPDATE users SET referred_by=? WHERE id=?", (referrer["id"], uid))
+     token = secrets.token_hex(32)
+-    _db("INSERT INTO tokens(token,user_id,created_at) VALUES(?,?,?)", (token, uid, now_iso()))
++    _db("INSERT INTO tokens(token,user_id,created_at) VALUES(?,?,?)", (_th(token), uid, now_iso()))
+     u = get_user_by_id(uid)
+     return h.json_out({"success": True, "token": token, "user": user_json(u), "data": {"token": token, "user": user_json(u)}})
+ 
+@@ -480,11 +525,14 @@
+ def auth_login(h, body, user):
+     password = str(body.get("password") or "")
+     ident = str(body.get("email") or "").strip()
++    if len(password) > MAX_PW or len(ident) > 254:
++        return h.json_out({"message": "Неверный email или пароль"}, 401)
+     u = _db1("SELECT * FROM users WHERE lower(email)=lower(?) OR lower(username)=lower(?)", (ident, ident))
+     k1, k2 = "ip:" + h.client_ip(), "id:" + ident.lower()
+     if throttled(k1, 20) or throttled(k2, 5):
+         return h.json_out({"message": "Слишком много попыток. Подождите 15 минут"}, 429)
+-    if not u or not check_password(password, u["pass_hash"]):
++    pw_ok = check_password(password, u["pass_hash"] if u else _dummy_hash())
++    if not u or not pw_ok:
+         note_fail(k1)
+         note_fail(k2)
+         return h.json_out({"message": "Неверный email или пароль"}, 401)
+@@ -493,7 +541,7 @@
+     if not u["pass_hash"].startswith("i"):
+         _db("UPDATE users SET pass_hash=? WHERE id=?", (hash_password(password), u["id"]))
+     token = secrets.token_hex(32)
+-    _db("INSERT INTO tokens(token,user_id,created_at) VALUES(?,?,?)", (token, u["id"], now_iso()))
++    _db("INSERT INTO tokens(token,user_id,created_at) VALUES(?,?,?)", (_th(token), u["id"], now_iso()))
+     return h.json_out({"success": True, "token": token, "user": user_json(u), "data": {"token": token, "user": user_json(u)}})
+ 
+ 
+@@ -508,20 +556,38 @@
+ def auth_logout(h, body, user):
+     token = h.bearer_token()
+     if token:
+-        _db("DELETE FROM tokens WHERE token=?", (token,))
++        _db("DELETE FROM tokens WHERE token=?", (_th(token),))
+     return h.json_out({"success": True})
+ 
+ 
++@route("POST", "/api/auth/loader-token")
++def loader_token(h, body, user):
++    """Отдельный короткоживущий токен для лоадера: сайтовый токен (30 дней) наружу не отдаём."""
++    if not require(user) or user.get("_scope") != "web":
++        return h.json_out({"message": "Не авторизован"}, 401)
++    if throttled("ltok:%s" % user["id"], 20, 3600):
++        return h.json_out({"message": "Слишком много запросов"}, 429)
++    note_fail("ltok:%s" % user["id"])
++    token = secrets.token_hex(32)
++    _db("DELETE FROM tokens WHERE user_id=? AND scope='loader'", (user["id"],))
++    _db("INSERT INTO tokens(token,user_id,created_at,scope) VALUES(?,?,?,'loader')",
++        (_th(token), user["id"], now_iso()))
++    return h.json_out({"success": True, "token": token, "expires_in": LOADER_TTL})
++
++
+ @route("PUT", "/api/auth/password")
+ def auth_password(h, body, user):
+     if not require(user):
+         return h.json_out({"message": "Не авторизован"}, 401)
+     cur_pw = str(body.get("currentPassword") or "")
+     new_pw = str(body.get("newPassword") or "")
+-    if not check_password(cur_pw, user["pass_hash"]):
++    if throttled("pw:%s" % user["id"], 5, 900):
++        return h.json_out({"message": "Слишком много попыток. Подождите 15 минут"}, 429)
++    if len(cur_pw) > MAX_PW or not check_password(cur_pw, user["pass_hash"]):
++        note_fail("pw:%s" % user["id"])
+         return h.json_out({"message": "Текущий пароль неверен"}, 400)
+-    if len(new_pw) < 6:
+-        return h.json_out({"message": "Новый пароль минимум 6 символов"}, 400)
++    if len(new_pw) < MIN_PW or len(new_pw) > MAX_PW:
++        return h.json_out({"message": "Новый пароль: от %d до %d символов" % (MIN_PW, MAX_PW)}, 400)
+     _db("UPDATE users SET pass_hash=? WHERE id=?", (hash_password(new_pw), user["id"]))
+     _db("DELETE FROM tokens WHERE user_id=? AND token<>?", (user["id"], user["_token"]))
+     return h.json_out({"success": True})
+@@ -646,15 +712,39 @@
+             if col == "username":
+                 if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", val):
+                     return h.json_out({"message": "Ник: 3-20 символов (латиница, цифры, _)"}, 400)
+-                if _db1("SELECT id FROM users WHERE username=? AND id<>?", (val, user["id"])):
++                if _db1("SELECT id FROM users WHERE lower(username)=lower(?) AND id<>?", (val, user["id"])):
+                     return h.json_out({"message": "Ник занят"}, 400)
++            if col in ("display_name", "bio"):
++                val = re.sub(r"[\x00-\x1f\x7f\u202a-\u202e\u2066-\u2069]", "", val)
+             if col == "display_name" and len(val) > 32:
+                 return h.json_out({"message": "Display Name максимум 32 символа"}, 400)
+-            _db("UPDATE users SET %s=? WHERE id=?" % col, (val, user["id"]))
++            if col == "bio" and len(val) > 500:
++                return h.json_out({"message": "Bio максимум 500 символов"}, 400)
++            try:
++                _db("UPDATE users SET %s=? WHERE id=?" % col, (val, user["id"]))
++            except psycopg2.errors.UniqueViolation:
++                return h.json_out({"message": "Ник занят"}, 400)
+     u = get_user_by_id(user["id"])
+     return h.json_out({"success": True, "data": user_json(u), "user": user_json(u)})
+ 
+ 
++def _rm_upload(rel):
++    if rel and rel.startswith("/uploads/local/"):
++        p = os.path.join(ROOT, "uploads", "local", os.path.basename(rel))
++        try:
++            os.remove(p)
++        except OSError:
++            pass
++
++
++def _upload_limited(h, user):
++    if throttled("up:%s" % user["id"], 10, 3600):
++        h.json_out({"message": "Слишком много загрузок, попробуйте позже"}, 429)
++        return True
++    note_fail("up:%s" % user["id"])
++    return False
++
++
+ def save_upload(h, body, field):
+     ctype = h.headers.get("Content-Type", "")
+     if not body or "multipart/form-data" not in ctype:
+@@ -697,9 +787,12 @@
+ def profile_avatar(h, body, user):
+     if not require(user):
+         return h.json_out({"message": "Не авторизован"}, 401)
++    if _upload_limited(h, user):
++        return
+     rel = save_upload(h, body, "avatar")
+     if not rel:
+         return h.json_out({"message": "Файл не получен"}, 400)
++    _rm_upload(user["avatar"])
+     _db("UPDATE users SET avatar=? WHERE id=?", (rel, user["id"]))
+     u = get_user_by_id(user["id"])
+     return h.json_out({"success": True, "avatar": rel, "data": {"avatar": rel, "user": user_json(u)}, "user": user_json(u)})
+@@ -709,9 +802,12 @@
+ def profile_cover(h, body, user):
+     if not require(user):
+         return h.json_out({"message": "Не авторизован"}, 401)
++    if _upload_limited(h, user):
++        return
+     rel = save_upload(h, body, "cover")
+     if not rel:
+         return h.json_out({"message": "Файл не получен"}, 400)
++    _rm_upload(user["cover"])
+     _db("UPDATE users SET cover=? WHERE id=?", (rel, user["id"]))
+     u = get_user_by_id(user["id"])
+     return h.json_out({"success": True, "cover": rel, "data": {"cover": rel, "user": user_json(u)}, "user": user_json(u)})
+@@ -771,10 +867,10 @@
+ 
+ @proute("GET", r"^/api/profile/([^/]+)$")
+ def profile_by_name(h, mo, body, user):
+-    from urllib.parse import unquote
+-
+-    uname = unquote(mo.group(1))
+-    target = _db1("SELECT * FROM users WHERE username=? OR display_name=?", (uname, uname))
++    if not require(user):
++        return h.json_out({"message": "Не авторизован"}, 401)
++    uname = unquote(mo.group(1))[:40]
++    target = _db1("SELECT * FROM users WHERE lower(username)=lower(?)", (uname,))
+     if not target:
+         return h.json_out({"message": "Пользователь не найден"}, 404)
+     pj = public_user_json(target)
+@@ -783,10 +879,10 @@
+ 
+ @proute("GET", r"^/api/profile/([^/]+)/inventory$")
+ def profile_inventory(h, mo, body, user):
+-    from urllib.parse import unquote
+-
+-    uname = unquote(mo.group(1))
+-    target = _db1("SELECT id FROM users WHERE username=? OR display_name=?", (uname, uname))
++    if not require(user):
++        return h.json_out({"message": "Не авторизован"}, 401)
++    uname = unquote(mo.group(1))[:40]
++    target = _db1("SELECT id FROM users WHERE lower(username)=lower(?)", (uname,))
+     if not target:
+         return h.json_out({"message": "Пользователь не найден"}, 404)
+     rows = _db("SELECT cosmetic_id FROM inventory WHERE user_id=?", (target["id"],))
+@@ -842,7 +938,7 @@
+         "code": code,
+         "uses": user["ref_uses"],
+         "earned": user["ref_earned"],
+-        "url": "%s://%s/?ref=%s" % (h.headers.get("X-Forwarded-Proto", "http"), h.headers.get("Host", ""), code),
++        "url": "%s/?ref=%s" % (SITE_URL, code),
+         "status": "active",
+         "created_at": user["created_at"],
+     }
+@@ -858,6 +954,10 @@
+     )
+ 
+ 
++def _has_paid(uid):
++    return bool(_db1("SELECT 1 FROM purchases WHERE user_id=? AND source IN ('buy','key','pay') LIMIT 1", (uid,)))
++
++
+ @route("GET", "/api/daily-bonus/status")
+ def daily_status(h, body, user):
+     if not require(user):
+@@ -865,7 +965,7 @@
+     last = float(user["last_daily"] or 0)
+     left = max(0, int(last + 86400 - time.time()))
+     d = {
+-        "canClaim": left == 0,
++        "canClaim": left == 0 and _has_paid(user["id"]),
+         "purchasePrice": 99,
+         "paidOpensRemaining": 0,
+         "timeUntilNext": left * 1000,
+@@ -878,6 +978,8 @@
+ def daily_claim(h, body, user):
+     if not require(user):
+         return h.json_out({"message": "Не авторизован"}, 401)
++    if not _has_paid(user["id"]):
++        return h.json_out({"message": "Бонус доступен после первой покупки или активации ключа"}, 403)
+     amt = 5 + secrets.randbelow(46)
+     now = time.time()
+     ok = _db1(
+@@ -967,7 +1069,9 @@
+ 
+ @proute("GET", r"^/api/payments/")
+ def payments_status(h, mo, body, user):
+-    return h.json_out({"success": True, "status": "paid", "paid": True, "data": {"status": "paid"}})
++    if not require(user):
++        return h.json_out({"message": "Не авторизован"}, 401)
++    return h.json_out({"success": True, "status": "pending", "paid": False, "data": {"status": "pending"}})
+ 
+ 
+ @route("POST", "/api/orders/check-promo")
+@@ -1108,14 +1212,14 @@
+         val = str(body["username"]).strip()
+         if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", val):
+             return h.json_out({"message": "Ник: 3-20 символов (латиница, цифры, _)"}, 400)
+-        if _db1("SELECT id FROM users WHERE username=? AND id<>?", (val, uid)):
++        if _db1("SELECT id FROM users WHERE lower(username)=lower(?) AND id<>?", (val, uid)):
+             return h.json_out({"message": "Ник занят"}, 400)
+         _db("UPDATE users SET username=? WHERE id=?", (val, uid))
+     if "email" in body and body.get("email"):
+         val = str(body["email"]).strip().lower()
+         if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", val):
+             return h.json_out({"message": "Некорректный email"}, 400)
+-        if _db1("SELECT id FROM users WHERE email=? AND id<>?", (val, uid)):
++        if _db1("SELECT id FROM users WHERE lower(email)=lower(?) AND id<>?", (val, uid)):
+             return h.json_out({"message": "Email занят"}, 400)
+         _db("UPDATE users SET email=? WHERE id=?", (val, uid))
+     u = get_user_by_id(uid)
+@@ -1174,9 +1278,12 @@
+     except (TypeError, ValueError):
+         count = 1
+     made = []
++    custom = str(body.get("key") or "").strip().upper()
++    if count == 1 and custom and not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{11,63}", custom):
++        return h.json_out({"message": "Свой ключ: 12–64 символа, A-Z, 0-9 и «-»"}, 400)
+     audit(user, "create_keys", "product=%s count=%s" % (pid, count))
+     for _ in range(count):
+-        key = (str(body.get("key") or "").strip() if count == 1 else "") or (
++        key = (custom if count == 1 else "") or (
+             "SNW-" + "-".join(secrets.token_hex(2).upper() for _ in range(3))
+         )
+         if _db1("SELECT 1 FROM keys WHERE key=?", (key,)):
+@@ -1291,9 +1398,27 @@
+         "backup_codes TEXT NOT NULL DEFAULT ''",
+         "hwid TEXT NOT NULL DEFAULT ''",
+         "hwid_bound_at TEXT NOT NULL DEFAULT ''",
++        "referred_by INTEGER",
++        "ref_paid INTEGER NOT NULL DEFAULT 0",
+     ):
+         _run("ALTER TABLE users ADD COLUMN IF NOT EXISTS " + col, (), False)
+     _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS mfa_at DOUBLE PRECISION NOT NULL DEFAULT 0", (), False)
++    _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'web'", (), False)
++    _run("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT)", (), False)
++    # однократно: старые токены лежали в БД открытым текстом — сбрасываем все сессии
++    if not _db1("SELECT 1 FROM meta WHERE k='tokens_hashed'"):
++        _run("DELETE FROM tokens", (), False)
++        _run("INSERT INTO meta(k,v) VALUES('tokens_hashed','1')", (), False)
++    for ddl in (
++        "CREATE INDEX IF NOT EXISTS tokens_user ON tokens(user_id)",
++        "CREATE INDEX IF NOT EXISTS purchases_user ON purchases(user_id)",
++        "CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower ON users(lower(username))",
++        "CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users(lower(email))",
++    ):
++        try:
++            _run(ddl, (), False)
++        except Exception as e:  # например, уже есть дубли ников — разберите вручную
++            print("migrate warning:", ddl, "->", e, file=sys.stderr)
+     _run(
+         "CREATE TABLE IF NOT EXISTS audit(id SERIAL PRIMARY KEY, ts TEXT NOT NULL, admin_id INTEGER,"
+         " admin_name TEXT, action TEXT NOT NULL, detail TEXT)", (), False)
+@@ -1334,8 +1459,8 @@
+     if hc not in hs:
+         return False
+     hs.remove(hc)
+-    _db("UPDATE users SET backup_codes=? WHERE id=?", (",".join(hs), u["id"]))
+-    return True
++    return bool(_db1("UPDATE users SET backup_codes=? WHERE id=? AND backup_codes=? RETURNING id",
++                     (",".join(hs), u["id"], u["backup_codes"])))
+ 
+ 
+ def _mfa_guard(h, user):
+@@ -1495,9 +1620,15 @@
+         self.end_headers()
+         self.wfile.write(data)
+ 
++    server_version = "web"
++    sys_version = ""
++
+     def client_ip(self):
+-        xff = (self.headers.get("X-Forwarded-For") or "").split(",")
+-        return (xff[-1].strip() if xff[-1].strip() else self.client_address[0])
++        if TRUST_PROXY:
++            xff = (self.headers.get("X-Forwarded-For") or "").split(",")
++            if xff[-1].strip():
++                return xff[-1].strip()[:64]
++        return self.client_address[0]
+ 
+     def end_headers(self):
+         self.send_header("X-Content-Type-Options", "nosniff")
+@@ -1505,6 +1636,7 @@
+         self.send_header("Referrer-Policy", "no-referrer")
+         self.send_header("Strict-Transport-Security", "max-age=31536000")
+         self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
++        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+         clean_path = self.path.split("?")[0]
+         if clean_path in (
+             "/admin", "/admin/", "/admin.html", "/admin.js",
+@@ -1513,6 +1645,9 @@
+             self.send_header("Cache-Control", "no-store")
+         if clean_path in ("/admin", "/admin/", "/admin.html"):
+             self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
++        elif not self.path.startswith("/api/"):
++            # inline onclick/onerror в разметке пока требуют 'unsafe-inline' для скриптов
++            self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://www.youtube.com; connect-src 'self' http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+         super().end_headers()
+ 
+     def bearer_token(self):
+@@ -1521,66 +1656,30 @@
+             return auth[7:].strip()
+         return None
+ 
+-    def read_body(self):
+-        length = self.headers.get("Content-Length")
+-        if not length:
+-            return {}
+-        if int(length) > MAX_BODY:
++    def read_body(self, path=""):
++        """dict / bytes (только загрузка картинок) / None, если запрос некорректен или слишком большой."""
++        raw_len = self.headers.get("Content-Length")
++        if not raw_len:
+             return {}
+-        raw = self.rfile.read(int(length))
++        try:
++            length = int(raw_len)
++        except ValueError:
++            return None
++        ctype = self.headers.get("Content-Type") or ""
++        multipart = "multipart/form-data" in ctype
++        if length < 0 or length > (MAX_UPLOAD if (multipart and path in UPLOAD_PATHS) else MAX_JSON):
++            return None
++        raw = self.rfile.read(length) if length else b""
++        if multipart:
++            return raw if path in UPLOAD_PATHS else None
+         if not raw:
+             return {}
+-        if "multipart/form-data" in (self.headers.get("Content-Type") or ""):
+-            return raw
+         try:
+             data = json.loads(raw.decode("utf-8"))
+             return data if isinstance(data, dict) else {}
+         except Exception:
+             return {}
+ 
+-    def brand(self, data):
+-        for a, b in BRAND_MAP:
+-            if a in data:
+-                data = data.replace(a, b)
+-        return data
+-
+-    def _proxy(self, brand=False):
+-        req = urllib.request.Request(ORIGIN + self.path, method=self.command)
+-        for h in PROXY_HEADERS:
+-            if self.headers.get(h):
+-                req.add_header(h, self.headers[h])
+-        body = None
+-        length = self.headers.get("Content-Length")
+-        if length:
+-            if int(length) > MAX_BODY:
+-                return self.json_out({"message": "Слишком большой запрос"}, 413)
+-            body = self.rfile.read(int(length))
+-        try:
+-            with urllib.request.urlopen(req, body, timeout=30) as r:
+-                data = r.read()
+-                ctype = r.headers.get("Content-Type") or ""
+-                if brand and "json" in ctype:
+-                    data = self.brand(data)
+-                self.send_response(r.status)
+-                for k, v in r.headers.items():
+-                    if k.lower() in ("transfer-encoding", "connection", "content-length", "content-encoding"):
+-                        continue
+-                    self.send_header(k, v)
+-                self.send_header("Content-Length", str(len(data)))
+-                self.end_headers()
+-                self.wfile.write(data)
+-        except urllib.error.HTTPError as e:
+-            data = e.read()
+-            if brand and "json" in (e.headers.get("Content-Type") or ""):
+-                data = self.brand(data)
+-            self.send_response(e.code)
+-            self.send_header("Content-Type", e.headers.get("Content-Type") or "application/json")
+-            self.send_header("Content-Length", str(len(data)))
+-            self.end_headers()
+-            self.wfile.write(data)
+-        except Exception as ex:
+-            self.json_out({"message": "Прокси: %s" % ex}, 502)
+-
+     STATIC_OK = ("/static/", "/uploads/local/", "/assets/", "/fonts/")
+     STATIC_FILES = (
+     "/", "/index.html", "/admin.html", "/admin.js",
+@@ -1643,9 +1742,21 @@
+         if method == "GET":
+             self.json_out({"success": True, "data": [], "count": 0})
+         else:
+-            self.json_out({"success": True})
++            self.json_out({"message": "Не найдено"}, 404)
+ 
+     def _handle(self, method):
++        try:
++            self._handle_inner(method)
++        except (BrokenPipeError, ConnectionResetError):
++            pass
++        except Exception:
++            traceback.print_exc()  # подробности только в лог, клиенту — ничего лишнего
++            try:
++                self.json_out({"message": "Внутренняя ошибка сервера"}, 500)
++            except Exception:
++                pass
++
++    def _handle_inner(self, method):
+         parts = urlsplit(self.path)
+         path = parts.path
+         if path.startswith("/uploads/local/"):
+@@ -1664,8 +1775,12 @@
+             elif path in ("/cabinet", "/cabinet/"):
+                 self.path = "/cabinet.html"
+             return self._serve_static()
+-        body = self.read_body() if method in ("POST", "PUT", "PATCH", "DELETE") else {}
++        body = self.read_body(path) if method in ("POST", "PUT", "PATCH", "DELETE") else {}
++        if body is None:
++            return self.json_out({"message": "Некорректный или слишком большой запрос"}, 413)
+         user = get_user_by_token(self.bearer_token())
++        if user and user.get("_scope") != "web" and (method, path) not in LOADER_ALLOWED:
++            return self.json_out({"message": "Токен лоадера не подходит для этого метода"}, 403)
+         self._handle_api(method, path, body, user)
+ 
+     def do_GET(self):
+@@ -1684,19 +1799,31 @@
+         self._handle("DELETE")
+ 
+     def do_OPTIONS(self):
++        # сайт и API на одном origin — CORS не нужен
+         self.send_response(204)
+-        self.send_header("Access-Control-Allow-Origin", "*")
+-        self.send_header("Access-Control-Allow-Headers", "*")
+-        self.send_header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
++        self.send_header("Allow", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+         self.end_headers()
+ 
+     def log_message(self, fmt, *args):
+         pass
+ 
+ 
++def _purge_loop():
++    while True:
++        try:
++            cutoff = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - TOKEN_TTL))
++            _db("DELETE FROM tokens WHERE created_at < ?", (cutoff,))
++        except Exception:
++            traceback.print_exc()
++        time.sleep(3600)
++
++
+ if __name__ == "__main__":
+     init_db()
+     migrate()
++    if os.environ.get("ADMIN_USERNAME") and not os.environ.get("ADMIN_EMAIL"):
++        print("WARNING: задан ADMIN_USERNAME без ADMIN_EMAIL — автосоздание админа отключено", file=sys.stderr)
++    threading.Thread(target=_purge_loop, daemon=True).start()
+     _run("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily DOUBLE PRECISION NOT NULL DEFAULT 0", (), False)
+     with http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler) as httpd:
+         print("listening on", PORT)
+--- /mnt/user-data/uploads/script.js	2026-11-15 17:08:02.678541000 +0000
++++ script.js	2026-11-15 17:12:15.340634981 +0000
+@@ -1003,7 +1003,7 @@
+   const uname = u.username || '?';
+   const av = document.getElementById('cabAvatar');
+   if (av) {
+-    if (u.avatar) av.innerHTML = `<img src="${esc(u.avatar)}" alt="" onerror="this.parentNode.textContent='${esc(uname.charAt(0))}'">`;
++    if (u.avatar) { av.textContent = uname.charAt(0); if (/^\/uploads\/local\/[\w.-]+$/.test(String(u.avatar))) { const img = document.createElement('img'); img.alt = ''; img.addEventListener('error', () => { av.textContent = uname.charAt(0); }); img.src = u.avatar; av.textContent = ''; av.append(img); } }
+     else av.textContent = uname.charAt(0);
+   }
+   document.getElementById('cabName').textContent  = u.display_name || uname;
+--- /mnt/user-data/uploads/cabinet.js	2026-11-15 17:08:02.554631000 +0000
++++ cabinet.js	2026-11-15 17:12:15.341100447 +0000
+@@ -132,7 +132,7 @@
+   const av = document.getElementById('cabAvatar');
+   if (av) {
+     if (u.avatar) {
+-      av.innerHTML = `<img src="${esc(u.avatar)}" alt="" onerror="this.parentNode.textContent='${esc(uname.charAt(0))}'">`;
++      { av.textContent = uname.charAt(0); if (/^\/uploads\/local\/[\w.-]+$/.test(String(u.avatar))) { const img = document.createElement('img'); img.alt = ''; img.addEventListener('error', () => { av.textContent = uname.charAt(0); }); img.src = u.avatar; av.textContent = ''; av.append(img); } }
+     } else {
+       av.textContent = uname.charAt(0);
+     }
+--- /mnt/user-data/uploads/loader-auth.js	2026-11-15 17:08:02.464355000 +0000
++++ loader-auth.js	2026-11-15 17:12:15.341330590 +0000
+@@ -82,11 +82,20 @@
+             const j = await r.json();
+             const u = j.data || j.user;
+             if (u && u.username) {
++                // В лоадер уходит отдельный короткоживущий токен (12 ч, ограниченные права),
++                // а не основной токен сессии сайта.
++                const tr = await fetch('/api/auth/loader-token', {
++                    method: 'POST',
++                    headers: { 'Authorization': 'Bearer ' + token }
++                });
++                if (!tr.ok) return;
++                const lt = (await tr.json()).token;
++                if (!lt) return;
+                 await window.sendAuthToLoader({
+                     username: u.username,
+                     uid: u.id,
+                     sub: u.has_subscription ? 'Active' : 'None',
+-                    token: token
++                    token: lt
+                 });
+             }
+         } catch (e) {
+@@ -95,6 +104,13 @@
+         }
+     }
+ 
++    // Не долбим сервер каждую секунду: реагируем на вход в другой вкладке и редко опрашиваем,
++    // максимум 10 минут, потом останавливаемся.
+     checkLoggedInUser();
+-    setInterval(checkLoggedInUser, 1000);
++    window.addEventListener('storage', e => { if (e.key === 'vortex_token') checkLoggedInUser(); });
++    const startedAt = Date.now();
++    const timer = setInterval(() => {
++        if (alreadySent || Date.now() - startedAt > 10 * 60 * 1000) return clearInterval(timer);
++        checkLoggedInUser();
++    }, 3000);
+ })();
+\ No newline at end of file

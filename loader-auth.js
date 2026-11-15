@@ -82,11 +82,20 @@
             const j = await r.json();
             const u = j.data || j.user;
             if (u && u.username) {
+                // В лоадер уходит отдельный короткоживущий токен (12 ч, ограниченные права),
+                // а не основной токен сессии сайта.
+                const tr = await fetch('/api/auth/loader-token', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!tr.ok) return;
+                const lt = (await tr.json()).token;
+                if (!lt) return;
                 await window.sendAuthToLoader({
                     username: u.username,
                     uid: u.id,
                     sub: u.has_subscription ? 'Active' : 'None',
-                    token: token
+                    token: lt
                 });
             }
         } catch (e) {
@@ -95,6 +104,13 @@
         }
     }
 
+    // Не долбим сервер каждую секунду: реагируем на вход в другой вкладке и редко опрашиваем,
+    // максимум 10 минут, потом останавливаемся.
     checkLoggedInUser();
-    setInterval(checkLoggedInUser, 1000);
+    window.addEventListener('storage', e => { if (e.key === 'vortex_token') checkLoggedInUser(); });
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+        if (alreadySent || Date.now() - startedAt > 10 * 60 * 1000) return clearInterval(timer);
+        checkLoggedInUser();
+    }, 3000);
 })();
