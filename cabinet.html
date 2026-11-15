@@ -13,7 +13,6 @@
 
 <div class="bg-base"></div>
 <div class="bg-grid"></div>
-<div class="aurora" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
 <canvas class="snow-canvas" id="snowCanvas" aria-hidden="true"></canvas>
 <div class="cursor-glow" id="cursorGlow"></div>
 
@@ -42,8 +41,8 @@
         <div class="lang-dropdown" id="langDropdown"></div>
       </div>
 
-      <a href="/" class="btn btn-outline" style="padding:8px 16px;font-size:0.82rem;" data-i18n="cabBackHome">На главную</a>
-      <button class="btn btn-outline cab-logout" type="button" style="padding:8px 16px;font-size:0.82rem;" onclick="logout()" data-i18n="cabLogout">Выйти</button>
+      <a href="/" class="btn btn-outline cab-nav-link" data-i18n="cabBackHome">На главную</a>
+      <button class="btn btn-outline cab-logout cab-nav-link" type="button" onclick="logout()" data-i18n="cabLogout">Выйти</button>
     </div>
   </div>
 </nav>
@@ -60,7 +59,7 @@
           <div class="cab-hero-top">
             <h1 class="cab-hero-name" id="cabName">Загрузка...</h1>
             <span class="cab-role" id="cabRole">user</span>
-            <span class="cab-sub-pill" id="cabSubPill">—</span>
+            <span class="cab-sub-pill inactive" id="cabSubPill">—</span>
           </div>
           <div class="cab-email" id="cabEmail"></div>
         </div>
@@ -75,22 +74,22 @@
     <!-- Сетка: Сайдбар + Контент -->
     <div class="cab-layout">
       <aside class="cab-sidebar glass">
-        <button class="cab-nav-btn active" data-tab="overview" onclick="switchCabTab('overview')">
+        <button class="cab-nav-btn active" type="button" data-tab="overview" onclick="switchCabTab('overview')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
           <span data-i18n="cabTabOverview">Обзор</span>
         </button>
 
-        <button class="cab-nav-btn" data-tab="loader" onclick="switchCabTab('loader')">
+        <button class="cab-nav-btn" type="button" data-tab="loader" onclick="switchCabTab('loader')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span data-i18n="cabTabLoader">Скачать лоадер</span>
         </button>
 
-        <button class="cab-nav-btn" data-tab="keys" onclick="switchCabTab('keys')">
+        <button class="cab-nav-btn" type="button" data-tab="keys" onclick="switchCabTab('keys')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
           <span data-i18n="cabTabKeys">Ключи и оплата</span>
         </button>
 
-        <button class="cab-nav-btn" data-tab="settings" onclick="switchCabTab('settings')">
+        <button class="cab-nav-btn" type="button" data-tab="settings" onclick="switchCabTab('settings')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
           <span data-i18n="cabTabSettings">Настройки</span>
         </button>
@@ -102,24 +101,37 @@
         <section class="cab-panel active" id="panel-overview">
           <div class="cab-stats-3">
             <div class="cab-stat glass spot">
-              <div class="cab-stat-label" data-i18n="cabBalance">Баланс</div>
+              <div class="cab-stat-head">
+                <span class="cab-stat-label" data-i18n="cabBalance">Баланс</span>
+              </div>
               <div class="cab-stat-value" id="cabBalance">0.00 ₽</div>
+              <div class="cab-stat-sub" data-i18n="cabBalanceSub">Внутренний счёт аккаунта</div>
             </div>
-            <div class="cab-stat glass spot" onclick="copyRefCode()" style="cursor:pointer;">
-              <div class="cab-stat-label" data-i18n="cabRef">Реферальный код</div>
+
+            <div class="cab-stat cab-stat-clickable glass spot" onclick="copyRefCode()" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();copyRefCode();}">
+              <div class="cab-stat-head">
+                <span class="cab-stat-label" data-i18n="cabRef">Реферальный код</span>
+                <span class="cab-stat-copy-icon" aria-hidden="true">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                </span>
+              </div>
               <div class="cab-stat-value cab-ref" id="cabRef">—</div>
+              <div class="cab-stat-sub" data-i18n="cabRefSub">Нажмите, чтобы скопировать</div>
             </div>
+
             <div class="cab-stat glass spot">
-              <div class="cab-stat-label" data-i18n="cabHwidLabel">Привязка ПК (HWID)</div>
+              <div class="cab-stat-head">
+                <span class="cab-stat-label" data-i18n="cabHwidLabel">Привязка ПК (HWID)</span>
+              </div>
               <div class="cab-stat-value cab-hwid-val" id="cabHwidState">—</div>
-              <div class="cab-stat-sub" id="cabHwidDate"></div>
+              <div class="cab-stat-sub" id="cabHwidDate">—</div>
             </div>
           </div>
 
           <div class="cab-card glass">
             <div class="cab-card-head">
               <h2 data-i18n="cabPurchases">Мои подписки и покупки</h2>
-              <button class="btn btn-outline" style="padding:7px 14px;font-size:0.78rem;" onclick="switchCabTab('loader')" data-i18n="cabGoLoader">Перейти к лоадеру →</button>
+              <button class="btn btn-outline" type="button" style="height:34px;padding:0 14px;font-size:0.8rem;" onclick="switchCabTab('loader')" data-i18n="cabGoLoader">Перейти к лоадеру →</button>
             </div>
             <ul class="cab-purchases" id="cabPurchases"></ul>
           </div>
@@ -144,7 +156,7 @@
               <div class="loader-dl-row">
                 <button class="btn btn-primary" id="btnDownloadLoader" type="button" onclick="downloadLoader()">
                   <span class="spinner"></span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
@@ -162,7 +174,7 @@
                 <p data-i18n="loaderNoSubDesc">Приобретите подписку на FunPay или активируйте ключ во вкладке «Ключи и оплата», чтобы открыть доступ к скачиванию.</p>
               </div>
               <div class="loader-locked-btns">
-                <a class="btn btn-primary" href="https://funpay.com/lots/offer?id=78533148" target="_blank" rel="noopener" data-i18n="cabBuyFunpay">Купить на FunPay</a>
+                <a class="btn btn-primary" id="cabBuyLoaderBtn" href="https://funpay.com/lots/offer?id=78533148" target="_blank" rel="noopener" data-i18n="cabBuyFunpay">Купить на FunPay</a>
                 <button class="btn btn-outline" type="button" onclick="switchCabTab('keys')" data-i18n="cabActivate">Активировать ключ</button>
               </div>
             </div>
@@ -170,18 +182,18 @@
 
           <!-- Пошаговая инструкция -->
           <div class="cab-steps-grid">
-            <div class="cab-card glass spot">
-              <span class="feature-num">01</span>
+            <div class="cab-card cab-step-card glass spot">
+              <div class="cab-step-num">01</div>
               <h3 class="cab-step-title" data-i18n="step1Title">Скачай и запусти</h3>
               <p class="cab-step-desc" data-i18n="step1Desc">Загрузи SnowClient.exe и запусти от имени администратора. Лоадер сам докачает нужные компоненты.</p>
             </div>
-            <div class="cab-card glass spot">
-              <span class="feature-num">02</span>
+            <div class="cab-card cab-step-card glass spot">
+              <div class="cab-step-num">02</div>
               <h3 class="cab-step-title" data-i18n="step2Title">Войди по логину и паролю</h3>
               <p class="cab-step-desc" data-i18n="step2Desc">Введи логин и пароль от этого аккаунта. При первом входе твой HWID автоматически привяжется к профилю.</p>
             </div>
-            <div class="cab-card glass spot">
-              <span class="feature-num">03</span>
+            <div class="cab-card cab-step-card glass spot">
+              <div class="cab-step-num">03</div>
               <h3 class="cab-step-title" data-i18n="step3Title">Нажми «Играть»</h3>
               <p class="cab-step-desc" data-i18n="step3Desc">Настрой выделение RAM и разрешение экрана в лаунчере и запускай Minecraft 1.21.11.</p>
             </div>
@@ -208,37 +220,45 @@
                 <h2 data-i18n="cabFunpayTitle">Покупка подписки через FunPay</h2>
                 <p class="cab-card-sub" style="margin-bottom:0;" data-i18n="cabFunpayDesc">Оплата банковскими картами, СБП и кошельками с гарантией сделки.</p>
               </div>
-              <a class="btn btn-primary" href="https://funpay.com/lots/offer?id=78533148" target="_blank" rel="noopener" data-i18n="cabBuyFunpay">Перейти на FunPay →</a>
+              <a class="btn btn-primary" id="cabBuyKeysBtn" href="https://funpay.com/lots/offer?id=78533148" target="_blank" rel="noopener" data-i18n="cabBuyFunpayLink">Перейти на FunPay →</a>
             </div>
           </div>
         </section>
 
         <!-- ВКЛАДКА 4: НАСТРОЙКИ -->
         <section class="cab-panel" id="panel-settings">
-          <div class="cab-card glass" style="margin-bottom:16px;">
-            <h2 data-i18n="cabProfileSettings">Профиль</h2>
-            <form class="cab-settings-form" onsubmit="saveDisplayName(event)">
-              <label class="field">
-                <input type="text" id="setDisplayName" maxlength="32" placeholder=" " />
-                <span data-i18n="cabDisplayName">Отображаемое имя</span>
-              </label>
-              <button class="btn btn-primary" type="submit" style="align-self:flex-start;" data-i18n="cabSave">Сохранить</button>
-            </form>
-          </div>
+          <div class="cab-settings-grid">
+            <div class="cab-card glass">
+              <h2 data-i18n="cabProfileSettings">Профиль</h2>
+              <form class="cab-settings-form" onsubmit="saveDisplayName(event)">
+                <label class="field">
+                  <input type="text" id="setDisplayName" maxlength="32" placeholder=" " />
+                  <span data-i18n="cabDisplayName">Отображаемое имя</span>
+                </label>
+                <button class="btn btn-primary" id="saveNameBtn" type="submit">
+                  <span class="spinner"></span>
+                  <span data-i18n="cabSave">Сохранить</span>
+                </button>
+              </form>
+            </div>
 
-          <div class="cab-card glass">
-            <h2 data-i18n="cabChangePass">Смена пароля</h2>
-            <form class="cab-settings-form" onsubmit="changePassword(event)">
-              <label class="field">
-                <input type="password" id="setCurPass" autocomplete="current-password" placeholder=" " required />
-                <span data-i18n="cabCurPass">Текущий пароль</span>
-              </label>
-              <label class="field">
-                <input type="password" id="setNewPass" autocomplete="new-password" minlength="6" placeholder=" " required />
-                <span data-i18n="cabNewPass">Новый пароль (мин. 6 символов)</span>
-              </label>
-              <button class="btn btn-outline" type="submit" style="align-self:flex-start;" data-i18n="cabUpdatePass">Обновить пароль</button>
-            </form>
+            <div class="cab-card glass">
+              <h2 data-i18n="cabChangePass">Смена пароля</h2>
+              <form class="cab-settings-form" onsubmit="changePassword(event)">
+                <label class="field">
+                  <input type="password" id="setCurPass" autocomplete="current-password" placeholder=" " required />
+                  <span data-i18n="cabCurPass">Текущий пароль</span>
+                </label>
+                <label class="field">
+                  <input type="password" id="setNewPass" autocomplete="new-password" minlength="6" placeholder=" " required />
+                  <span data-i18n="cabNewPass">Новый пароль (мин. 6 символов)</span>
+                </label>
+                <button class="btn btn-outline" id="changePassBtn" type="submit">
+                  <span class="spinner"></span>
+                  <span data-i18n="cabUpdatePass">Обновить пароль</span>
+                </button>
+              </form>
+            </div>
           </div>
         </section>
 

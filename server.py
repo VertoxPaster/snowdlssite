@@ -1460,13 +1460,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         xff = (self.headers.get("X-Forwarded-For") or "").split(",")
         return (xff[-1].strip() if xff[-1].strip() else self.client_address[0])
 
-    def end_headers(self):
+   def end_headers(self):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        if self.path.split("?")[0] in ("/admin", "/admin/", "/admin.html", "/admin.js") or self.path.startswith("/api/"):
+        clean_path = self.path.split("?")[0]
+        if clean_path in (
+            "/admin", "/admin/", "/admin.html", "/admin.js",
+            "/cabinet", "/cabinet/", "/cabinet.html", "/cabinet.js",
+        ) or self.path.startswith("/api/"):
             self.send_header("Cache-Control", "no-store")
-        if self.path.split("?")[0] in ("/admin", "/admin/", "/admin.html"):
+        if clean_path in ("/admin", "/admin/", "/admin.html"):
             self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
         super().end_headers()
 

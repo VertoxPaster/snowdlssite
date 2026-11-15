@@ -19,6 +19,11 @@ const fmtMoney = n => (Number(n) || 0).toFixed(2) + ' ' + CUR;
 function getToken() { try { return localStorage.getItem(TOKEN_KEY); } catch { return null; } }
 function setToken(t) { try { t ? localStorage.setItem(TOKEN_KEY, t) : localStorage.removeItem(TOKEN_KEY); } catch {} }
 
+function handleExpired() {
+  setToken(null);
+  location.replace('/?auth=login&next=cabinet');
+}
+
 async function api(path, { method = 'GET', body, token = getToken(), timeout = 8000 } = {}) {
   const headers = { 'Accept': 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -50,12 +55,20 @@ async function api(path, { method = 'GET', body, token = getToken(), timeout = 8
 
 document.addEventListener('DOMContentLoaded', async () => {
   applyColors();
+  bindPaymentLinks();
   buildLangDropdown();
   setLanguage(currentLang);
   setupSnow();
   setupSpotlight();
 
-  // Открытие вкладки из хэша (#loader, #keys, #settings)
+  document.addEventListener('click', e => {
+    const sel = document.getElementById('langSelector');
+    if (sel && !sel.contains(e.target)) closeLangDropdown();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeLangDropdown();
+  });
+
   const hashTab = location.hash.replace('#', '');
   if (['overview', 'loader', 'keys', 'settings'].includes(hashTab)) {
     switchCabTab(hashTab);
@@ -63,6 +76,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await bootCabinet();
 });
+
+function bindPaymentLinks() {
+  ['cabBuyTopBtn', 'cabBuyLoaderBtn', 'cabBuyKeysBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.href = FUNPAY_URL;
+  });
+}
 
 function applyColors() {
   const c = CONFIG.colors;
@@ -85,7 +105,7 @@ function applyColors() {
 async function bootCabinet() {
   const token = getToken();
   if (!token) {
-    location.replace('/?auth=login');
+    handleExpired();
     return;
   }
 
@@ -98,8 +118,7 @@ async function bootCabinet() {
     renderProfile();
     await loadPurchases();
   } catch (e) {
-    setToken(null);
-    location.replace('/?auth=login');
+    handleExpired();
   }
 }
 
@@ -108,6 +127,8 @@ function renderProfile() {
   if (!u) return;
 
   const uname = u.username || '?';
+  const displayName = (u.display_name || '').trim() || uname;
+
   const av = document.getElementById('cabAvatar');
   if (av) {
     if (u.avatar) {
@@ -117,9 +138,14 @@ function renderProfile() {
     }
   }
 
-  document.getElementById('cabName').textContent = u.display_name || uname;
-  document.getElementById('cabEmail').textContent = u.email || '';
-  document.getElementById('setDisplayName').value = u.display_name || uname;
+  document.getElementById('cabName').textContent = displayName;
+
+  const metaParts = [];
+  if (displayName.toLowerCase() !== uname.toLowerCase()) metaParts.push('@' + uname);
+  if (u.email) metaParts.push(u.email);
+  document.getElementById('cabEmail').textContent = metaParts.join(' · ');
+
+  document.getElementById('setDisplayName').value = displayName;
 
   const roleEl = document.getElementById('cabRole');
   const roleMap = {
@@ -153,13 +179,14 @@ function renderProfile() {
   if (hwid) {
     const masked = hwid.length > 10 ? `${hwid.slice(0, 6)}...${hwid.slice(-4)}` : hwid;
     hwidState.textContent = `${tt('cabHwidBound')} (${masked})`;
-    hwidState.style.background = 'linear-gradient(90deg, #22C55E, #86EFAC)';
-    hwidState.style.webkitBackgroundClip = 'text';
-    hwidState.style.webkitTextFillColor = 'transparent';
-    hwidDate.textContent = u.hwid_bound_at ? fmtDate(u.hwid_bound_at) : '';
+    hwidState.classList.add('is-bound');
+    hwidState.classList.remove('is-unbound');
+    hwidDate.textContent = u.hwid_bound_at ? fmtDate(u.hwid_bound_at) : tt('cabHwidBound');
     if (bindNote) bindNote.textContent = `${tt('cabHwidBound')}: ${masked}`;
   } else {
     hwidState.textContent = tt('cabHwidUnbound');
+    hwidState.classList.add('is-unbound');
+    hwidState.classList.remove('is-bound');
     hwidDate.textContent = tt('cabHwidHint');
     if (bindNote) bindNote.textContent = tt('cabHwidHint');
   }
@@ -196,15 +223,25 @@ async function loadPurchases() {
       ul.innerHTML = `<li class="cab-empty">${esc(tt('cabNoPurchases'))}</li>`;
       return;
     }
-    ul.innerHTML = list.map((p, i) => `
-      <li class="cab-purchase" style="--st:${Math.min(i, 8) * 60}ms">
-        <div>
-          <div class="cab-purchase-title">${esc(p.title || ('#' + p.product_id))}</div>
-          <div class="cab-purchase-meta">${esc(fmtDate(p.purchased_at))}</div>
-        </div>
-        <span class="cab-purchase-badge">${p.expires_at ? esc(tt('cabUntil') + fmtDate(p.expires_at)) : esc(tt('cabForever'))}</span>
-      </li>`).join('');
+    const now = Date.now();
+    ul.innerHTML = list.map((p, i) => {
+      const expMs = p.expires_at ? Date.parse(p.expires_at) : NaN;
+      const isExpired = !isNaN(expMs) && expMs < now;
+      const badgeText = p.expires_at
+        ? (isExpired ? `${tt('cabExpired')} (${fmtDate(p.expires_at)})` : `${tt('cabUntil')}${fmtDate(p.expires_at)}`)
+        : tt('cabForever');
+
+      return `
+        <li class="cab-purchase" style="--st:${Math.min(i, 8) * 50}ms">
+          <div class="cab-purchase-info">
+            <div class="cab-purchase-title">${esc(p.title || ('#' + p.product_id))}</div>
+            <div class="cab-purchase-meta">${esc(fmtDate(p.purchased_at))}</div>
+          </div>
+          <span class="cab-purchase-badge ${isExpired ? 'expired' : ''}">${esc(badgeText)}</span>
+        </li>`;
+    }).join('');
   } catch (e) {
+    if (e.status === 401) return handleExpired();
     ul.innerHTML = `<li class="cab-empty">${esc(e.message)}</li>`;
   }
 }
@@ -222,13 +259,16 @@ async function downloadLoader() {
       return;
     }
 
-    // Если файл отдаётся локально с сервера — качаем Blob с токеном
     const binRes = await fetch('/api/loader/download', {
       headers: {
         'Authorization': 'Bearer ' + getToken(),
         'Accept': 'application/octet-stream'
       }
     });
+    if (binRes.status === 401) {
+      handleExpired();
+      return;
+    }
     if (!binRes.ok) {
       let msg = 'Ошибка загрузки';
       try { msg = (await binRes.json()).message || msg; } catch {}
@@ -246,6 +286,7 @@ async function downloadLoader() {
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     showToast(tt('loaderStarted'), 'success');
   } catch (err) {
+    if (err.status === 401) return handleExpired();
     showToast(err.message, 'error');
   } finally {
     btn.classList.remove('loading');
@@ -267,12 +308,13 @@ async function activateKey(e) {
     input.value = '';
     showToast(tt('cabKeyOk') + title, 'success');
 
-    // Обновляем профиль, чтобы сразу разблокировалось скачивание лоадера
     const me = await api('/api/auth/me');
     currentUser = me.data || me.user || currentUser;
+    userBalance = Number(currentUser.balance ?? userBalance);
     renderProfile();
     await loadPurchases();
   } catch (err) {
+    if (err.status === 401) return handleExpired();
     showToast(err.message, 'error');
   } finally {
     btn.classList.remove('loading');
@@ -281,36 +323,76 @@ async function activateKey(e) {
 
 async function saveDisplayName(e) {
   e.preventDefault();
-  const val = document.getElementById('setDisplayName').value.trim();
-  if (!val) return;
+  const input = document.getElementById('setDisplayName');
+  const btn = document.getElementById('saveNameBtn');
+  const val = input.value.trim();
+  if (!val || (btn && btn.classList.contains('loading'))) return;
+
+  if (btn) btn.classList.add('loading');
   try {
     const r = await api('/api/profile/me', { method: 'PATCH', body: { display_name: val } });
     currentUser = r.data || r.user || currentUser;
     renderProfile();
     showToast(tt('cabSaved'), 'success');
   } catch (err) {
+    if (err.status === 401) return handleExpired();
     showToast(err.message, 'error');
+  } finally {
+    if (btn) btn.classList.remove('loading');
   }
 }
 
 async function changePassword(e) {
   e.preventDefault();
-  const cur = document.getElementById('setCurPass').value;
-  const nw = document.getElementById('setNewPass').value;
+  const btn = document.getElementById('changePassBtn');
+  const curInput = document.getElementById('setCurPass');
+  const newInput = document.getElementById('setNewPass');
+  const cur = curInput.value;
+  const nw = newInput.value;
+
+  if (!cur || !nw || (btn && btn.classList.contains('loading'))) return;
+  if (nw.length < 6) {
+    showToast(tt('authShort'), 'error');
+    return;
+  }
+
+  if (btn) btn.classList.add('loading');
   try {
     await api('/api/auth/password', { method: 'PUT', body: { currentPassword: cur, newPassword: nw } });
-    document.getElementById('setCurPass').value = '';
-    document.getElementById('setNewPass').value = '';
+    curInput.value = '';
+    newInput.value = '';
     showToast(tt('cabPassChanged'), 'success');
   } catch (err) {
+    if (err.status === 401) return handleExpired();
     showToast(err.message, 'error');
+  } finally {
+    if (btn) btn.classList.remove('loading');
   }
 }
 
 function copyRefCode() {
   const code = currentUser?.ref_code;
   if (!code) return;
-  navigator.clipboard?.writeText(code).then(() => showToast(tt('cabCopied'), 'success'));
+
+  const done = () => showToast(tt('cabCopied'), 'success');
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(code).then(done).catch(() => fallbackCopy(code, done));
+  } else {
+    fallbackCopy(code, done);
+  }
+}
+
+function fallbackCopy(text, onSuccess) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    if (document.execCommand('copy')) onSuccess();
+    ta.remove();
+  } catch {}
 }
 
 async function logout() {
@@ -337,6 +419,11 @@ function toggleLangDropdown() {
   document.getElementById('langDropdown')?.classList.toggle('open');
 }
 
+function closeLangDropdown() {
+  document.getElementById('langBtn')?.classList.remove('open');
+  document.getElementById('langDropdown')?.classList.remove('open');
+}
+
 function setLanguage(lang) {
   currentLang = lang;
   try { localStorage.setItem('snow_lang', lang); } catch {}
@@ -344,18 +431,28 @@ function setLanguage(lang) {
   document.getElementById('langLabel').textContent = found?.label ?? lang.toUpperCase();
   document.getElementById('langFlag').textContent = found?.flag ?? '';
 
+  document.querySelectorAll('.lang-option').forEach((el, i) => {
+    el.classList.toggle('active', CONFIG.languages[i]?.code === lang);
+  });
+
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n');
     const val = tt(key);
-    if (val) el.textContent = val;
+    if (val && val !== key) el.textContent = val;
   });
 
-  document.getElementById('langBtn')?.classList.remove('open');
-  document.getElementById('langDropdown')?.classList.remove('open');
-  if (currentUser) renderProfile();
+  const keyInput = document.getElementById('cabKeyInput');
+  if (keyInput) keyInput.placeholder = tt('cabKeyPh');
+
+  document.documentElement.lang = lang;
+  closeLangDropdown();
+  if (currentUser) {
+    renderProfile();
+    loadPurchases();
+  }
 }
 
-/* ── Снег и Spotlight (такие же, как на главной) ── */
+/* ── Снег и Spotlight ── */
 function setupSnow() {
   const canvas = document.getElementById('snowCanvas');
   if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -365,13 +462,13 @@ function setupSnow() {
   function resize() {
     w = canvas.width = window.innerWidth;
     h = canvas.height = window.innerHeight;
-    flakes = Array.from({ length: Math.min(80, Math.floor((w * h) / 20000)) }, () => ({
+    flakes = Array.from({ length: Math.min(70, Math.floor((w * h) / 22000)) }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
-      r: 0.8 + Math.random() * 1.8,
-      vy: 0.3 + Math.random() * 0.7,
+      r: 0.7 + Math.random() * 1.6,
+      vy: 0.25 + Math.random() * 0.65,
       sway: Math.random() * Math.PI * 2,
-      a: 0.25 + Math.random() * 0.45
+      a: 0.2 + Math.random() * 0.4
     }));
   }
 
@@ -380,10 +477,10 @@ function setupSnow() {
     for (const f of flakes) {
       f.sway += 0.008;
       f.y += f.vy;
-      f.x += Math.sin(f.sway) * 0.3;
+      f.x += Math.sin(f.sway) * 0.28;
       if (f.y > h) { f.y = -5; f.x = Math.random() * w; }
       ctx.beginPath();
-      ctx.fillStyle = `rgba(186,215,255,${f.a})`;
+      ctx.fillStyle = `rgba(203, 224, 255, ${f.a})`;
       ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
       ctx.fill();
     }

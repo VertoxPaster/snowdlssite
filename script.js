@@ -1,15 +1,15 @@
 /* ============================================================
-   SNOWCLIENT — MAIN SCRIPT  v6.0  (premium dark · auth · motion)
+   SNOWCLIENT — MAIN SCRIPT  v6.1  (clean dark · auth · motion)
    ============================================================ */
 
 'use strict';
 
-let currentLang = CONFIG.defaultLanguage;
+let currentLang = localStorage.getItem('snow_lang') || CONFIG.defaultLanguage;
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const TOUCH   = window.matchMedia('(hover: none)').matches;
 
 /* ════════════════════════════════════════
-   INIT
+   INIT    
 ════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   applyColors();
@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupCardTilt();
   prefillReferral();
   loadSession();
+  handleAuthQuery();
 
   if (CONFIG.video.url) embedVideo(CONFIG.video.url);
 
@@ -37,6 +38,23 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') closeAllModals();
   });
 });
+
+function handleAuthQuery() {
+  try {
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('auth');
+    if (mode === 'login' || mode === 'register') {
+      if (params.get('next') === 'cabinet') {
+        sessionStorage.setItem('auth_next', '/cabinet');
+      }
+      openAuth(mode);
+      params.delete('auth');
+      params.delete('next');
+      const clean = params.toString();
+      history.replaceState(null, '', location.pathname + (clean ? '?' + clean : '') + location.hash);
+    }
+  } catch {}
+}
 
 /* Прелоадер → запуск анимаций */
 let readyDone = false;
@@ -367,9 +385,10 @@ function closeLangDropdown() {
 
 function setLanguage(lang) {
   currentLang = lang;
+  try { localStorage.setItem('snow_lang', lang); } catch {}
 
-  const t   = CONFIG.i18n[lang];
-  const nav = CONFIG.nav.links[lang];
+  const t     = CONFIG.i18n[lang];
+  const nav   = CONFIG.nav.links[lang];
   const found = CONFIG.languages.find(l => l.code === lang);
 
   document.getElementById('langLabel').textContent = found?.label ?? lang.toUpperCase();
@@ -886,7 +905,7 @@ function switchAuthTab(tab, instant = false) {
 function updateAuthTexts() {
   const reg = authTab === 'register';
   const set = (id, key) => { const el = document.getElementById(id); if (el) el.textContent = tt(key); };
-  set('authIdentLabel',    reg ? 'authEmail'       : 'authIdent');
+  set('authIdentLabel',    reg ? 'authEmail'        : 'authIdent');
   set('authPasswordLabel', reg ? 'authPasswordMin' : 'authPassword');
   set('authSubmitLabel',   reg ? 'authSubmitRegister' : 'authSubmitLogin');
   set('authSub',           reg ? 'authSubRegister' : 'authSubLogin');
@@ -931,7 +950,7 @@ async function submitAuth(e) {
   try {
     const payload = reg
       ? { username: uname, email: ident, password: pass, ...(ref ? { referralCode: ref } : {}) }
-      : { email: ident, password: pass };               // email принимает и email, и ник
+      : { email: ident, password: pass };                // email принимает и email, и ник
     const r = await api(reg ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body: payload, token: null });
 
     const token = r.token || r.data?.token;
@@ -947,6 +966,13 @@ async function submitAuth(e) {
     renderAuthUI();
     showToast((reg ? tt('authRegistered') : tt('authWelcome')) + (currentUser?.username || ''), 'success');
     refreshBalance();
+
+    const nextUrl = sessionStorage.getItem('auth_next');
+    if (nextUrl) {
+      sessionStorage.removeItem('auth_next');
+      location.href = nextUrl;
+      return;
+    }
   } catch (err) {
     showAuthError(err.message);
   } finally {
