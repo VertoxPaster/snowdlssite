@@ -1405,17 +1405,6 @@ def migrate():
     _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS mfa_at DOUBLE PRECISION NOT NULL DEFAULT 0", (), False)
     _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'web'", (), False)
     _run("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT)", (), False)
-    _run(
-        "CREATE TABLE IF NOT EXISTS audit(id SERIAL PRIMARY KEY, ts TEXT NOT NULL, admin_id INTEGER,"
-        " admin_name TEXT, action TEXT NOT NULL, detail TEXT)", (), False)
-    for col in (
-        "ts TEXT",
-        "admin_id INTEGER",
-        "admin_name TEXT",
-        "action TEXT",
-        "detail TEXT",
-    ):
-        _run("ALTER TABLE audit ADD COLUMN IF NOT EXISTS " + col, (), False)
     # однократно: старые токены лежали в БД открытым текстом — сбрасываем все сессии
     if not _db1("SELECT 1 FROM meta WHERE k='tokens_hashed'"):
         _run("DELETE FROM tokens", (), False)
@@ -1433,7 +1422,34 @@ def migrate():
     _run(
         "CREATE TABLE IF NOT EXISTS audit(id SERIAL PRIMARY KEY, ts TEXT NOT NULL, admin_id INTEGER,"
         " admin_name TEXT, action TEXT NOT NULL, detail TEXT)", (), False)
-
+    for col in (
+        "ts TEXT",
+        "admin_id INTEGER",
+        "admin_name TEXT",
+        "action TEXT",
+        "detail TEXT",
+    ):
+        _run("ALTER TABLE audit ADD COLUMN IF NOT EXISTS " + col, (), False)
+    for r in _db(
+        "SELECT column_name FROM information_schema.columns"
+        " WHERE table_schema = current_schema() AND table_name = 'audit'"
+        " AND is_nullable = 'NO' AND column_name NOT IN ('id', 'ts', 'action')"
+    ):
+        _run("ALTER TABLE audit ALTER COLUMN %s DROP NOT NULL" % r["column_name"], (), False)
+    for col in (
+        "product_id INTEGER",
+        "created_by INTEGER",
+        "used_by INTEGER",
+        "used_at TEXT",
+        "created_at TEXT",
+    ):
+        _run("ALTER TABLE keys ADD COLUMN IF NOT EXISTS " + col, (), False)
+    for r in _db(
+        "SELECT column_name FROM information_schema.columns"
+        " WHERE table_schema = current_schema() AND table_name = 'keys'"
+        " AND is_nullable = 'NO' AND column_name NOT IN ('key', 'product_id', 'created_at')"
+    ):
+        _run("ALTER TABLE keys ALTER COLUMN %s DROP NOT NULL" % r["column_name"], (), False)
 
 def audit(admin, action, detail=""):
     _db(
