@@ -1263,7 +1263,96 @@ def admin_grant(h, body, user):
             )
         return h.json_out({"success": True, "message": "Косметика #%d выдана" % cid})
     return h.json_out({"message": "Нечего выдавать"}, 400)
+@route("GET", "/api/admin/users/subscriptions")
+def admin_user_subs(h, body, user):
+    if not require_admin(user):
+        return h.json_out({"message": "Доступ только для админа"}, 403)
+    uid = h.path.split("userId=")[-1].split("&")[0] if "userId=" in h.path else ""
+    try:
+        uid = int(uid)
+    except (TypeError, ValueError):
+        return h.json_out({"message": "Некорректный userId"}, 400)
+    rows = _db(
+        "SELECT id, product_id, title, price, source, purchased_at, expires_at"
+        " FROM purchases WHERE user_id=? ORDER BY id DESC",
+        (uid,),
+    )
+    inv = _db("SELECT cosmetic_id, active, granted_at FROM inventory WHERE user_id=? ORDER BY granted_at DESC", (uid,))
+    return h.json_out({"success": True, "subscriptions": rows, "cosmetics": inv})
 
+
+@route("POST", "/api/admin/subscriptions/update")
+def admin_sub_update(h, body, user):
+    if not require_admin(user):
+        return h.json_out({"message": "Доступ только для админа"}, 403)
+    try:
+        sub_id = int(body.get("id"))
+    except (TypeError, ValueError):
+        return h.json_out({"message": "Некорректный ID подписки"}, 400)
+    row = _db1("SELECT * FROM purchases WHERE id=?", (sub_id,))
+    if not row:
+        return h.json_out({"message": "Подписка не найдена"}, 404)
+
+    action = str(body.get("action") or "")
+    if action == "delete":
+        _db("DELETE FROM purchases WHERE id=?", (sub_id,))
+        audit(user, "delete_subscription", "sub=%s user=%s title=%s" % (sub_id, row["user_id"], row["title"]))
+        return h.json_out({"success": True, "message": "Подписка удалена"})
+
+    if action == "lifetime":
+        _db("UPDATE purchases SET expires_at=NULL WHERE id=?", (sub_id,))
+        audit(user, "lifetime_subscription", "sub=%s user=%s" % (sub_id, row["user_id"]))
+        return h.json_out({"success": True, "message": "Выдан Lifetime"})
+
+    if action == "extend":
+        try:
+            days = int(body.get("days") or 0)
+        except (TypeError, ValueError):
+            return h.json_out({"message": "Некорректное число дней"}, 400)
+        if days == 0 or abs(days) > 3650:
+            return h.json_out({"message": "Укажите от -3650 до 3650 дней"}, 400)
+        cur_exp = row.get("expires_at")
+        base_ts = time.time()
+        if cur_exp:
+            try:
+                parsed = calendar.timegm(time.strptime(cur_exp[:19], "%Y-%m-%dT%H:%M:%S"))
+                if parsed > base_ts:
+                    base_ts = parsed
+            except ValueError:
+                pass
+        new_exp = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(base_ts + days * 86400)) + ".000Z"
+        _db("UPDATE purchases SET expires_at=? WHERE id=?", (new_exp, sub_id))
+        audit(user, "extend_subscription", "sub=%s user=%s days=%s" % (sub_id, row["user_id"], days))
+        return h.json_out({"success": True, "message": "Срок обновлён"})
+
+    if action == "set_date":
+        raw_date = str(body.get("expires_at") or "").strip()
+        if not raw_date:
+            _db("UPDATE purchases SET expires_at=NULL WHERE id=?", (sub_id,))
+        else:
+            if len(raw_date) == 10:
+                raw_date += "T23:59:59.000Z"
+            elif len(raw_date) == 16:
+                raw_date += ":00.000Z"
+            _db("UPDATE purchases SET expires_at=? WHERE id=?", (raw_date, sub_id))
+        audit(user, "set_sub_date", "sub=%s user=%s date=%s" % (sub_id, row["user_id"], raw_date or "lifetime"))
+        return h.json_out({"success": True, "message": "Дата окончания изменена"})
+
+    return h.json_out({"message": "Неизвестное действие"}, 400)
+
+
+@route("POST", "/api/admin/cosmetics/delete")
+def admin_cos_delete(h, body, user):
+    if not require_admin(user):
+        return h.json_out({"message": "Доступ только для админа"}, 403)
+    try:
+        uid = int(body.get("userId"))
+        cid = int(body.get("cosmeticId"))
+    except (TypeError, ValueError):
+        return h.json_out({"message": "Некорректные параметры"}, 400)
+    _db("DELETE FROM inventory WHERE user_id=? AND cosmetic_id=?", (uid, cid))
+    audit(user, "delete_cosmetic", "user=%s cosmetic=%s" % (uid, cid))
+    return h.json_out({"success": True, "message": "Косметика изъята"})
 
 @route("POST", "/api/admin/keys")
 def admin_keys(h, body, user):
