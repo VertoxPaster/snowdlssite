@@ -1,18 +1,15 @@
 (function () {
-    // 1. Проверяем, передал ли лоадер свой порт в ссылке (?loader_port=12345)
     const urlParams = new URLSearchParams(window.location.search);
     const portFromUrl = urlParams.get('loader_port');
 
     if (portFromUrl) {
         sessionStorage.setItem('snow_loader_port', portFromUrl);
-        // Очищаем ссылку в браузере, чтобы выглядела красиво
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     const activePort = sessionStorage.getItem('snow_loader_port');
-    if (!activePort) return; // Если сайт открыли просто так (не из лоадера) — ничего не делаем
+    if (!activePort) return;
 
-    // 2. Красивое уведомление в углу экрана (в стиле твоего сайта)
     function showToast(text, isSuccess = false) {
         let toast = document.getElementById('snow-loader-toast');
         if (!toast) {
@@ -31,17 +28,16 @@
         toast.textContent = text;
     }
 
-    showToast('Войдите в аккаунт, чтобы авторизоваться в SnowClient...');
+    showToast('Войдите в аккаунт на сайте для входа в лоадер...');
 
-    // 3. Функция отправки данных в C++ лоадер
     let alreadySent = false;
     window.sendAuthToLoader = async function (userData) {
-        if (alreadySent || !userData) return;
+        if (alreadySent || !userData || !userData.username) return;
 
         const payload = {
-            username: String(userData.username || userData.login || userData.name || userData.email || 'User'),
-            uid: String(userData.uid || userData.id || '1'),
-            sub: String(userData.sub || userData.subscription || userData.role || 'Active'),
+            username: String(userData.username),
+            uid: String(userData.uid || '1'),
+            sub: String(userData.sub || 'Active'),
             token: String(userData.token || '')
         };
 
@@ -55,53 +51,70 @@
             if (response.ok) {
                 alreadySent = true;
                 sessionStorage.removeItem('snow_loader_port');
-                showToast('Успешный вход! Можете вернуться в лоадер :)', true);
+                showToast('Успешный вход! Вернитесь в SnowClient :)', true);
             }
         } catch (err) {
-            console.error('Ошибка связи с лоадером:', err);
+            console.error('[SnowLoader] Ошибка отправки в лоадер:', err);
         }
     };
 
-    // 4. Автоматический поиск вошедшего пользователя в хранилище браузера
     function checkLoggedInUser() {
         if (alreadySent) return;
 
-        // Проверяем популярные ключи, куда сайты сохраняют профиль
-        const possibleKeys = ['snow_user', 'user', 'currentUser', 'auth_user', 'account'];
-        for (const key of possibleKeys) {
-            const raw = localStorage.getItem(key) || sessionStorage.getItem(key);
-            if (raw) {
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (parsed && (parsed.username || parsed.email || parsed.login || parsed.uid)) {
-                        window.sendAuthToLoader(parsed);
-                        return;
-                    }
-                } catch (e) {}
+        // 1. Проверяем JSON-объекты во всех ключах localStorage и sessionStorage
+        for (const storage of [localStorage, sessionStorage]) {
+            for (let i = 0; i < storage.length; i++) {
+                const k = storage.key(i);
+                const raw = storage.getItem(k);
+                if (!raw) continue;
+
+                // Firebase Auth
+                if (k.startsWith('firebase:authUser:')) {
+                    try {
+                        const fb = JSON.parse(raw);
+                        if (fb && fb.email) {
+                            window.sendAuthToLoader({
+                                username: fb.displayName || fb.email.split('@')[0],
+                                uid: fb.uid,
+                                token: fb.stsTokenManager ? fb.stsTokenManager.accessToken : ''
+                            });
+                            return;
+                        }
+                    } catch (e) {}
+                }
+
+                // Любой JSON с профилем
+                if (raw.startsWith('{')) {
+                    try {
+                        const obj = JSON.parse(raw);
+                        const name = obj.username || obj.login || obj.name || obj.nick || obj.email;
+                        if (name) {
+                            window.sendAuthToLoader({
+                                username: name,
+                                uid: obj.uid || obj.id || '1',
+                                sub: obj.sub || obj.subscription || obj.group || 'Active',
+                                token: obj.token || obj.accessToken || ''
+                            });
+                            return;
+                        }
+                    } catch (e) {}
+                }
             }
         }
 
-        // Если на сайте используется Firebase Auth
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && k.startsWith('firebase:authUser:')) {
-                try {
-                    const fbUser = JSON.parse(localStorage.getItem(k));
-                    if (fbUser && fbUser.email) {
-                        window.sendAuthToLoader({
-                            username: fbUser.displayName || fbUser.email.split('@')[0],
-                            uid: fbUser.uid,
-                            sub: 'Active',
-                            token: fbUser.stsTokenManager ? fbUser.stsTokenManager.accessToken : ''
-                        });
-                        return;
-                    }
-                } catch (e) {}
-            }
+        // 2. Проверяем, если логин и токен лежат отдельными строками
+        const directName = localStorage.getItem('username') || localStorage.getItem('login') ||
+                           sessionStorage.getItem('username') || sessionStorage.getItem('login');
+        if (directName) {
+            window.sendAuthToLoader({
+                username: directName,
+                uid: localStorage.getItem('uid') || '1',
+                token: localStorage.getItem('token') || ''
+            });
+            return;
         }
     }
 
-    // Проверяем сразу при загрузке и затем каждую секунду (на случай если юзер только вводит пароль)
     checkLoggedInUser();
     setInterval(checkLoggedInUser, 1000);
 })();
