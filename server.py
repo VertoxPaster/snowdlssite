@@ -1460,7 +1460,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         xff = (self.headers.get("X-Forwarded-For") or "").split(",")
         return (xff[-1].strip() if xff[-1].strip() else self.client_address[0])
 
-   def end_headers(self):
+    def end_headers(self):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
