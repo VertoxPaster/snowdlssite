@@ -1830,3 +1830,19 @@ section { position: relative; z-index: 2; padding: 110px 0; }
   .marquee-track { animation: none; }
   .snow-canvas { display: none; }
 }
+/* фикс отступов и hidden */
+[hidden] { display: none !important; }
+.cab-panel, .cab-panel.active { padding: 0; }
+
+/* центрирование карточек шагов */
+.cab-step-card { align-items: center; text-align: center; }
+.cab-step-num { margin-left: auto; margin-right: auto; }
+
+/* верхняя карточка лоадера по центру */
+.loader-hero-card { text-align: center; }
+.loader-badge-row,
+.loader-dl-row,
+.loader-locked-btns { justify-content: center; }
+.loader-card-desc { margin-left: auto; margin-right: auto; }
+.loader-locked { flex-direction: column; text-align: center; }
+.loader-locked-text p { margin: 0 auto; }
