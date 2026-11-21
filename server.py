@@ -19,6 +19,7 @@ import sys
 import traceback
 import time
 from urllib.parse import urlsplit, unquote
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
@@ -271,6 +272,7 @@ _products_cache = {"t": 0, "data": None}
 _cosmetics_cache = {"t": 0, "data": None}
 
 
+
 def fetch_products():
     return [
         {"id": 1, "title": "SnowClient — 1 Месяц", "price": 299, "duration": 30},
@@ -400,6 +402,23 @@ def add_balance(uid, amount, deposit=True):
 
 # ---------------------------------------------------------------- LAUNCHER API (HWID BINDING)
 
+def make_key_envelope(hwid: str, nonce_hex: str) -> str:
+    master_key = bytes.fromhex(os.environ["MOD_MASTER_KEY"])
+    transport_key = bytes.fromhex(os.environ["DLL_TRANSPORT_KEY"])
+
+    msg = f"{hwid}:{nonce_hex}".encode("utf-8")
+    wrap_key = hmac.new(transport_key, msg, hashlib.sha256).digest()
+
+    iv = os.urandom(12)
+    aad = nonce_hex.encode("utf-8")
+    ct_and_tag = AESGCM(wrap_key).encrypt(iv, master_key, aad)  # 32B ciphertext + 16B tag
+
+    ciphertext = ct_and_tag[:32]
+    tag = ct_and_tag[32:]
+    envelope = iv + tag + ciphertext  # 60 байт: 12B iv + 16B tag + 32B ciphertext
+    return base64.b64encode(envelope).decode("ascii")
+
+
 @route("POST", "/api/launcher/auth")
 def launcher_auth(h, body, user):
     if not isinstance(body, dict):
@@ -408,11 +427,14 @@ def launcher_auth(h, body, user):
     ident = str(body.get("username") or body.get("email") or "").strip()
     password = str(body.get("password") or "")
     hwid = str(body.get("hwid") or "").strip()
+    nonce = str(body.get("nonce") or "").strip().lower()
 
     if not ident or not password:
         return h.json_out({"status": "error", "message": "Введите логин и пароль"}, 400)
     if not hwid or len(hwid) < 4 or len(hwid) > 128:
         return h.json_out({"status": "error", "message": "Некорректный HWID устройства"}, 400)
+    if not re.fullmatch(r"[0-9a-f]{32}", nonce):
+        return h.json_out({"status": "error", "message": "Некорректный nonce сессии"}, 400)
     if len(password) > MAX_PW or len(ident) > 254:
         return h.json_out({"status": "error", "message": "Неверный логин или пароль"}, 401)
 
@@ -453,8 +475,8 @@ def launcher_auth(h, body, user):
         "status": "ok",
         "username": u["username"],
         "role": u["role"],
+        "key_envelope": make_key_envelope(hwid, nonce),
     })
-
 
 @route("GET", "/api/loader/download")
 def loader_download(h, body, user):
