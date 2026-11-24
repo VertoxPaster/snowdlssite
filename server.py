@@ -413,11 +413,10 @@ def make_key_envelope(hwid: str, nonce_hex: str) -> str:
     aad = nonce_hex.encode("utf-8")
     ct_and_tag = AESGCM(wrap_key).encrypt(iv, master_key, aad)  # 32B ciphertext + 16B tag
 
-    ciphertext = ct_and_tag[:32]
-    tag = ct_and_tag[32:]
+    ciphertext = ct_and_tag[:-16]
+    tag = ct_and_tag[-16:]
     envelope = iv + tag + ciphertext  # 60 байт: 12B iv + 16B tag + 32B ciphertext
     return base64.b64encode(envelope).decode("ascii")
-
 
 @route("POST", "/api/launcher/auth")
 def launcher_auth(h, body, user):
@@ -470,6 +469,40 @@ def launcher_auth(h, body, user):
             {"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"},
             403,
         )
+
+    return h.json_out({
+        "status": "ok",
+        "username": u["username"],
+        "role": u["role"],
+        "key_envelope": make_key_envelope(hwid, nonce),
+    })
+
+@route("POST", "/api/launcher/web-session")
+def launcher_web_session(h, body, user):
+    if not isinstance(body, dict):
+        return h.json_out({"status": "error", "message": "Некорректный формат запроса"}, 400)
+
+    token = str(body.get("token") or "").strip()
+    hwid = str(body.get("hwid") or "").strip()
+    nonce = str(body.get("nonce") or "").strip().lower()
+
+    u = user or get_user_by_token(token)
+    if not u:
+        return h.json_out({"status": "error", "message": "Сессия сайта недействительна"}, 401)
+    if not hwid or len(hwid) < 4 or len(hwid) > 128:
+        return h.json_out({"status": "error", "message": "Некорректный HWID устройства"}, 400)
+    if not re.fullmatch(r"[0-9a-f]{32}", nonce):
+        return h.json_out({"status": "error", "message": "Некорректный nonce сессии"}, 400)
+    if u["banned"]:
+        return h.json_out({"status": "error", "message": "Аккаунт заблокирован"}, 403)
+    if not has_active_subscription(u):
+        return h.json_out({"status": "error", "message": "Нет активной подписки"}, 403)
+
+    saved_hwid = (u.get("hwid") or "").strip()
+    if not saved_hwid:
+        _db("UPDATE users SET hwid=?, hwid_bound_at=? WHERE id=?", (hwid, now_iso(), u["id"]))
+    elif not secrets.compare_digest(saved_hwid, hwid):
+        return h.json_out({"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"}, 403)
 
     return h.json_out({
         "status": "ok",
