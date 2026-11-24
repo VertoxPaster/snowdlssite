@@ -31,6 +31,7 @@ MAX_UPLOAD = 3 * 1024 * 1024
 UPLOAD_PATHS = ("/api/profile/me/avatar", "/api/profile/me/cover")
 MIN_PW, MAX_PW = 8, 128
 LOADER_TTL = 12 * 3600
+TERMS_VERSION = "2026-11-24"
 # Токен лоадера (scope='loader') может вызывать только эти методы
 LOADER_ALLOWED = {
     ("GET", "/api/auth/me"),
@@ -198,7 +199,7 @@ def has_active_subscription(u):
 
 
 def user_json(u):
-    name = u["display_name"] or u["username"]
+    name = u["username"]  # отображаемое имя всегда равно нику и не редактируется
     hwid_val = (u.get("hwid") or "").strip()
     return {
         "id": u["id"],
@@ -567,6 +568,8 @@ def auth_register(h, body, user):
         return h.json_out({"message": "Некорректный email"}, 400)
     if len(password) < MIN_PW or len(password) > MAX_PW:
         return h.json_out({"message": "Пароль: от %d до %d символов" % (MIN_PW, MAX_PW)}, 400)
+    if body.get("acceptTerms") is not True:
+        return h.json_out({"message": "Необходимо принять пользовательское соглашение"}, 400)
     if throttled("reg:" + h.client_ip(), 5, 3600):
         return h.json_out({"message": "Слишком много регистраций, попробуйте позже"}, 429)
     note_fail("reg:" + h.client_ip())
@@ -581,9 +584,9 @@ def auth_register(h, body, user):
     ref_code = "SNW" + secrets.token_hex(4).upper()
     try:
         uid = _db1(
-            "INSERT INTO users(username,email,pass_hash,role,ref_code,created_at)"
-            " VALUES(?,?,?,?,?,?) RETURNING id",
-            (username, email, hash_password(password), role, ref_code, now_iso()),
+            "INSERT INTO users(username,email,pass_hash,role,ref_code,created_at,terms_accepted_at,terms_version)"
+            " VALUES(?,?,?,?,?,?,?,?) RETURNING id",
+            (username, email, hash_password(password), role, ref_code, now_iso(), now_iso(), TERMS_VERSION),
         )["id"]
     except psycopg2.errors.UniqueViolation:
         return h.json_out({"message": "Пользователь с таким ником или email уже существует"}, 400)
@@ -779,12 +782,12 @@ def profile_me(h, body, user):
 def profile_patch(h, body, user):
     if not require(user):
         return h.json_out({"message": "Не авторизован"}, 401)
+    # Отображаемое имя и ник менять нельзя (имя = ник)
+    for k in ("display_name", "displayName", "display-name", "username"):
+        if k in body:
+            return h.json_out({"message": "Имя и ник изменить нельзя"}, 403)
     mapping = {
-        "display_name": "display_name",
-        "displayName": "display_name",
-        "display-name": "display_name",
         "bio": "bio",
-        "username": "username",
     }
     for k, col in mapping.items():
         if k in body and body[k] is not None:
@@ -876,6 +879,16 @@ def profile_avatar(h, body, user):
     _db("UPDATE users SET avatar=? WHERE id=?", (rel, user["id"]))
     u = get_user_by_id(user["id"])
     return h.json_out({"success": True, "avatar": rel, "data": {"avatar": rel, "user": user_json(u)}, "user": user_json(u)})
+
+
+@route("DELETE", "/api/profile/me/avatar")
+def profile_avatar_delete(h, body, user):
+    if not require(user):
+        return h.json_out({"message": "Не авторизован"}, 401)
+    _rm_upload(user["avatar"])
+    _db("UPDATE users SET avatar='' WHERE id=?", (user["id"],))
+    u = get_user_by_id(user["id"])
+    return h.json_out({"success": True, "avatar": "", "data": {"avatar": "", "user": user_json(u)}, "user": user_json(u)})
 
 
 @route("POST", "/api/profile/me/cover")
@@ -1574,6 +1587,8 @@ def migrate():
         "hwid_bound_at TEXT NOT NULL DEFAULT ''",
         "referred_by INTEGER",
         "ref_paid INTEGER NOT NULL DEFAULT 0",
+        "terms_accepted_at TEXT NOT NULL DEFAULT ''",
+        "terms_version TEXT NOT NULL DEFAULT ''",
     ):
         _run("ALTER TABLE users ADD COLUMN IF NOT EXISTS " + col, (), False)
     _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS mfa_at DOUBLE PRECISION NOT NULL DEFAULT 0", (), False)

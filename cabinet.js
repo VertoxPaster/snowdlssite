@@ -58,8 +58,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindPaymentLinks();
   buildLangDropdown();
   setLanguage(currentLang);
-  setupSnow();
   setupSpotlight();
+
+  document.getElementById('avatarFile')?.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (f) uploadAvatar(f);
+  });
 
   document.addEventListener('click', e => {
     const sel = document.getElementById('langSelector');
@@ -127,16 +132,12 @@ function renderProfile() {
   if (!u) return;
 
   const uname = u.username || '?';
-  const displayName = (u.display_name || '').trim() || uname;
+  const displayName = uname; // отображаемое имя = ник, менять нельзя
 
-  const av = document.getElementById('cabAvatar');
-  if (av) {
-    if (u.avatar) {
-      { av.textContent = uname.charAt(0); if (/^\/uploads\/local\/[\w.-]+$/.test(String(u.avatar))) { const img = document.createElement('img'); img.alt = ''; img.addEventListener('error', () => { av.textContent = uname.charAt(0); }); img.src = u.avatar; av.textContent = ''; av.append(img); } }
-    } else {
-      av.textContent = uname.charAt(0);
-    }
-  }
+  renderAvatar(document.getElementById('cabAvatar'), u);
+  renderAvatar(document.getElementById('setAvatarPreview'), u);
+  const rm = document.getElementById('avatarRemoveBtn');
+  if (rm) rm.hidden = !u.avatar;
 
   document.getElementById('cabName').textContent = displayName;
 
@@ -194,6 +195,20 @@ function renderProfile() {
   // Блок скачивания лоадера
   document.getElementById('loaderAllowedBox').hidden = !hasSub;
   document.getElementById('loaderLockedBox').hidden = hasSub;
+}
+
+function renderAvatar(el, u) {
+  if (!el || !u) return;
+  const uname = u.username || '?';
+  el.textContent = uname.charAt(0);
+  if (u.avatar && /^\/uploads\/local\/[\w.-]+$/.test(String(u.avatar))) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.addEventListener('error', () => { el.textContent = uname.charAt(0); });
+    img.src = u.avatar;
+    el.textContent = '';
+    el.append(img);
+  }
 }
 
 function switchCabTab(tab) {
@@ -321,24 +336,61 @@ async function activateKey(e) {
   }
 }
 
-async function saveDisplayName(e) {
-  e.preventDefault();
-  const input = document.getElementById('setDisplayName');
-  const btn = document.getElementById('saveNameBtn');
-  const val = input.value.trim();
-  if (!val || (btn && btn.classList.contains('loading'))) return;
+const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+const AVATAR_MAX = 2 * 1024 * 1024;
 
-  if (btn) btn.classList.add('loading');
+function pickAvatar() {
+  document.getElementById('avatarFile')?.click();
+}
+
+function setAvatarBusy(on) {
+  document.getElementById('avatarUploadBtn')?.classList.toggle('loading', on);
+  document.getElementById('cabAvatarBtn')?.classList.toggle('busy', on);
+}
+
+async function uploadAvatar(file) {
+  if (!AVATAR_TYPES.includes(file.type) || file.size > AVATAR_MAX) {
+    return showToast(tt('cabAvatarBad'), 'error');
+  }
+  setAvatarBusy(true);
   try {
-    const r = await api('/api/profile/me', { method: 'PATCH', body: { display_name: val } });
-    currentUser = r.data || r.user || currentUser;
+    const fd = new FormData();
+    fd.append('avatar', file);
+    const res = await fetch('/api/profile/me/avatar', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken() },
+      body: fd
+    });
+    let data = {};
+    try { data = await res.json(); } catch {}
+    if (!res.ok) {
+      const err = new Error(data.message || ('HTTP ' + res.status));
+      err.status = res.status;
+      throw err;
+    }
+    currentUser = data.user || (data.data && data.data.user) || currentUser;
     renderProfile();
-    showToast(tt('cabSaved'), 'success');
+    showToast(tt('cabAvatarSaved'), 'success');
   } catch (err) {
     if (err.status === 401) return handleExpired();
     showToast(err.message, 'error');
   } finally {
-    if (btn) btn.classList.remove('loading');
+    setAvatarBusy(false);
+  }
+}
+
+async function removeAvatar() {
+  setAvatarBusy(true);
+  try {
+    const r = await api('/api/profile/me/avatar', { method: 'DELETE' });
+    currentUser = r.user || (r.data && r.data.user) || currentUser;
+    renderProfile();
+    showToast(tt('cabAvatarRemoved'), 'success');
+  } catch (err) {
+    if (err.status === 401) return handleExpired();
+    showToast(err.message, 'error');
+  } finally {
+    setAvatarBusy(false);
   }
 }
 
@@ -452,45 +504,7 @@ function setLanguage(lang) {
   }
 }
 
-/* ── Снег и Spotlight ── */
-function setupSnow() {
-  const canvas = document.getElementById('snowCanvas');
-  if (!canvas || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  const ctx = canvas.getContext('2d');
-  let w = 0, h = 0, flakes = [];
-
-  function resize() {
-    w = canvas.width = window.innerWidth;
-    h = canvas.height = window.innerHeight;
-    flakes = Array.from({ length: Math.min(70, Math.floor((w * h) / 22000)) }, () => ({
-      x: Math.random() * w,
-      y: Math.random() * h,
-      r: 0.7 + Math.random() * 1.6,
-      vy: 0.25 + Math.random() * 0.65,
-      sway: Math.random() * Math.PI * 2,
-      a: 0.2 + Math.random() * 0.4
-    }));
-  }
-
-  function frame() {
-    ctx.clearRect(0, 0, w, h);
-    for (const f of flakes) {
-      f.sway += 0.008;
-      f.y += f.vy;
-      f.x += Math.sin(f.sway) * 0.28;
-      if (f.y > h) { f.y = -5; f.x = Math.random() * w; }
-      ctx.beginPath();
-      ctx.fillStyle = `rgba(203, 224, 255, ${f.a})`;
-      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    requestAnimationFrame(frame);
-  }
-  window.addEventListener('resize', resize);
-  resize();
-  requestAnimationFrame(frame);
-}
-
+/* ── Spotlight ── */
 function setupSpotlight() {
   document.addEventListener('mousemove', e => {
     const card = e.target.closest?.('.spot');

@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupReveal();
   setupCursorGlow();
   setupSmoothLinks();
-  setupSnow();
   setupSpotlight();
   setupTilt();
   setupMagnetic();
@@ -55,21 +54,6 @@ function handleAuthQuery() {
     }
   } catch {}
 }
-
-/* Прелоадер → запуск анимаций */
-let readyDone = false;
-function startSite() {
-  if (readyDone) return;
-  readyDone = true;
-  const loader = document.getElementById('loader');
-  setTimeout(() => {
-    loader?.classList.add('done');
-    document.body.classList.remove('preload');
-    document.body.classList.add('ready');
-  }, REDUCED ? 0 : 900);
-}
-window.addEventListener('load', startSite);
-setTimeout(startSite, 3500); // запасной вариант, если load задерживается
 
 /* ════════════════════════════════════════
    COLORS → CSS Variables
@@ -112,84 +96,6 @@ function splitTitle() {
 function setupMarquee() {
   const track = document.getElementById('marqueeTrack');
   if (track) track.innerHTML += track.innerHTML;
-}
-
-/* ════════════════════════════════════════
-   SNOW — падающий снег на canvas
-════════════════════════════════════════ */
-function setupSnow() {
-  const canvas = document.getElementById('snowCanvas');
-  if (!canvas || REDUCED) return;
-  const ctx = canvas.getContext('2d');
-
-  let w = 0, h = 0, dpr = 1;
-  let flakes = [];
-  let mx = 0, targetMx = 0;
-  let running = true;
-
-  function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
-    w = window.innerWidth;
-    h = window.innerHeight;
-    canvas.width  = w * dpr;
-    canvas.height = h * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const count = Math.min(120, Math.floor((w * h) / 16000));
-    flakes = Array.from({ length: count }, () => makeFlake(true));
-  }
-
-  function makeFlake(randomY) {
-    const depth = Math.random();            // 0 = далеко, 1 = близко
-    return {
-      x: Math.random() * w,
-      y: randomY ? Math.random() * h : -10,
-      r: 0.7 + depth * 2.2,
-      vy: 0.25 + depth * 0.9,
-      sway: Math.random() * Math.PI * 2,
-      swaySpeed: 0.004 + Math.random() * 0.012,
-      swayAmp: 0.15 + Math.random() * 0.5,
-      a: 0.25 + depth * 0.55,
-      depth
-    };
-  }
-
-  function frame() {
-    if (!running) return;
-    ctx.clearRect(0, 0, w, h);
-    mx += (targetMx - mx) * 0.04;
-
-    for (const f of flakes) {
-      f.sway += f.swaySpeed;
-      f.y += f.vy;
-      f.x += Math.sin(f.sway) * f.swayAmp + mx * f.depth * 0.35;
-
-      if (f.y > h + 10) Object.assign(f, makeFlake(false), { x: Math.random() * w });
-      if (f.x > w + 10) f.x = -10;
-      if (f.x < -10)    f.x = w + 10;
-
-      ctx.beginPath();
-      ctx.fillStyle = `rgba(186,215,255,${f.a})`;
-      ctx.shadowColor = 'rgba(96,165,250,0.6)';
-      ctx.shadowBlur = f.r * 3;
-      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.shadowBlur = 0;
-    requestAnimationFrame(frame);
-  }
-
-  window.addEventListener('resize', resize);
-  window.addEventListener('mousemove', e => {
-    targetMx = (e.clientX / window.innerWidth - 0.5) * 6;
-  });
-  document.addEventListener('visibilitychange', () => {
-    running = !document.hidden;
-    if (running) requestAnimationFrame(frame);
-  });
-
-  resize();
-  requestAnimationFrame(frame);
 }
 
 /* ════════════════════════════════════════
@@ -700,6 +606,8 @@ const MODAL_IDS = {
   cabinet: 'modalCabinet'
 };
 
+let returnToAuth = false;   // открыли соглашение из формы регистрации → после закрытия вернуть форму
+
 function openModal(key) {
   closeAllModals();
   const id = MODAL_IDS[key];
@@ -717,9 +625,20 @@ function closeModal(key) {
   if (!id) return;
   document.getElementById(id)?.classList.remove('open');
   document.body.style.overflow = '';
+  if (key === 'terms' && returnToAuth) {
+    returnToAuth = false;
+    openModal('auth');
+  }
+}
+
+function openTermsFromAuth(e) {
+  if (e) e.preventDefault();
+  openModal('terms');
+  returnToAuth = true;
 }
 
 function closeAllModals() {
+  returnToAuth = false;
   Object.values(MODAL_IDS).forEach(id => {
     document.getElementById(id)?.classList.remove('open');
   });
@@ -727,10 +646,10 @@ function closeAllModals() {
 }
 
 function closeModalOutside(event, modalId) {
-  if (event.target.id === modalId) {
-    document.getElementById(modalId)?.classList.remove('open');
-    document.body.style.overflow = '';
-  }
+  if (event.target.id !== modalId) return;
+  if (modalId === 'modalTerms') return closeModal('terms');
+  document.getElementById(modalId)?.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 
@@ -861,6 +780,14 @@ function renderAuthUI() {
     name.removeAttribute('data-i18n');
     name.textContent = uname;
     av.textContent = uname.charAt(0);
+    if (currentUser.avatar && /^\/uploads\/local\/[\w.-]+$/.test(String(currentUser.avatar))) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.addEventListener('error', () => { av.textContent = uname.charAt(0); });
+      img.src = currentUser.avatar;
+      av.textContent = '';
+      av.append(img);
+    }
     bal.hidden = userBalance === null;
     if (userBalance !== null) bal.textContent = fmtMoney(userBalance);
     if (mob) { mob.removeAttribute('data-i18n'); mob.textContent = `${uname}${userBalance !== null ? ' · ' + fmtMoney(userBalance) : ''}`; }
@@ -950,13 +877,14 @@ async function submitAuth(e) {
 
   if (!ident || !pass || (reg && !uname)) return showAuthError(tt('authFill'));
   if (reg && (!/^[A-Za-z0-9_]{3,20}$/.test(uname) || pass.length < 6)) return showAuthError(tt('authShort'));
+  if (reg && !document.getElementById('authAgree')?.checked) return showAuthError(tt('authAgreeNeed'));
 
   const submit = document.getElementById('authSubmit');
   authBusy = true; submit.classList.add('loading'); clearAuthError();
 
   try {
     const payload = reg
-      ? { username: uname, email: ident, password: pass, ...(ref ? { referralCode: ref } : {}) }
+      ? { username: uname, email: ident, password: pass, acceptTerms: true, ...(ref ? { referralCode: ref } : {}) }
       : { email: ident, password: pass };                // email принимает и email, и ник
     const r = await api(reg ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body: payload, token: null });
 
