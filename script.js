@@ -598,15 +598,10 @@ function closeMobileMenu() {
    MODALS
 ════════════════════════════════════════ */
 const MODAL_IDS = {
-  privacy: 'modalPrivacy',
-  terms:   'modalTerms',
-  rules:   'modalRules',
   payment: 'modalPayment',
   auth:    'modalAuth',
   cabinet: 'modalCabinet'
 };
-
-let returnToAuth = false;   // открыли соглашение из формы регистрации → после закрытия вернуть форму
 
 function openModal(key) {
   closeAllModals();
@@ -625,20 +620,9 @@ function closeModal(key) {
   if (!id) return;
   document.getElementById(id)?.classList.remove('open');
   document.body.style.overflow = '';
-  if (key === 'terms' && returnToAuth) {
-    returnToAuth = false;
-    openModal('auth');
-  }
-}
-
-function openTermsFromAuth(e) {
-  if (e) e.preventDefault();
-  openModal('terms');
-  returnToAuth = true;
 }
 
 function closeAllModals() {
-  returnToAuth = false;
   Object.values(MODAL_IDS).forEach(id => {
     document.getElementById(id)?.classList.remove('open');
   });
@@ -647,7 +631,6 @@ function closeAllModals() {
 
 function closeModalOutside(event, modalId) {
   if (event.target.id !== modalId) return;
-  if (modalId === 'modalTerms') return closeModal('terms');
   document.getElementById(modalId)?.classList.remove('open');
   document.body.style.overflow = '';
 }

@@ -1901,7 +1901,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     STATIC_OK = ("/static/", "/uploads/local/", "/assets/", "/fonts/")
     STATIC_FILES = (
     "/", "/index.html", "/admin.html", "/admin.js",
-    "/cabinet.html", "/cabinet.js", "/loader-auth.js",
+    "/cabinet.html", "/cabinet.js", "/loader-auth.js", "/smoke-shader.js",
+    "/terms.html", "/rules.html", "/privacy.html",
     "/style.css", "/script.js", "/config.js",
     "/favicon.ico", "/manifest.json", "/robots.txt",
 )
@@ -1992,6 +1993,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.path = "/admin.html"
             elif path in ("/cabinet", "/cabinet/"):
                 self.path = "/cabinet.html"
+            elif path.rstrip("/") in ("/terms", "/rules", "/privacy"):
+                self.path = path.rstrip("/") + ".html"
             return self._serve_static()
         body = self.read_body(path) if method in ("POST", "PUT", "PATCH", "DELETE") else {}
         if body is None:
