@@ -99,10 +99,10 @@
 
         float f = fbm(p + 2.4 * r);
 
-        vec3 colVoid    = vec3(0.011, 0.014, 0.024); // #030406
-        vec3 colDark    = vec3(0.026, 0.036, 0.062); // тёмный графит
-        vec3 colMid     = vec3(0.052, 0.088, 0.165); // глубокий холодный синий
-        vec3 colAccent  = vec3(0.110, 0.210, 0.390); // мягкий дымчатый блик
+        vec3 colVoid    = vec3(0.012, 0.012, 0.013);
+        vec3 colDark    = vec3(0.036, 0.036, 0.040);
+        vec3 colMid     = vec3(0.075, 0.075, 0.082);
+        vec3 colAccent  = vec3(0.150, 0.150, 0.162);
 
         float smokeMask = smoothstep(0.18, 0.88, f);
         float wispMask  = smoothstep(0.45, 0.96, length(r) * 0.68);

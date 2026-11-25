@@ -22,22 +22,21 @@ const CONFIG = {
     tr: "Biz sadece bir istemci değiliz — biz bir oyun tarzıyız."
   },
 
-  // ─── ЦВЕТА (спокойный тёмный графит + холодный синий) ────
- // ─── ЦВЕТА (глубокий обсидиан + полупрозрачное стекло) ────
+  // ─── ЦВЕТА (угольно-чёрный + полупрозрачное стекло) ────
   colors: {
-    primary:      "#3B82F6",                  // Основной акцент (чистый синий)
-    primaryLight: "#93C5FD",                  // Светлый ледяной акцент
-    primaryDark:  "#2563EB",                  // Тёмный акцент при наведении
-    secondary:    "#60A5FA",                  // Вторичный светло-синий
-    accent:       "#7DD3FC",                  // Подсветка мелких деталей
-    bg:           "#030407",                  // Глубокий тёмный фон
-    bgCard:       "rgba(8, 10, 16, 0.46)",    // Полупрозрачный фон карточек под блюр
-    bgCardHover:  "rgba(13, 17, 27, 0.62)",   // Фон карточек при наведении
-    text:         "#F1F5F9",                  // Основной текст
-    textMuted:    "#7D889C",                  // Приглушённый текст
+    primary:      "#E6E7EA",                  // Основной акцент (холодный светло-серый)
+    primaryLight: "#FFFFFF",                  // Светлый акцент
+    primaryDark:  "#FFFFFF",                  // Акцент при наведении
+    secondary:    "#B4B7BF",                  // Вторичный серый
+    accent:       "#D4D6DC",                  // Подсветка мелких деталей
+    bg:           "#050505",                  // Угольно-чёрный фон
+    bgCard:       "rgba(13, 13, 14, 0.58)",   // Полупрозрачный фон карточек под блюр
+    bgCardHover:  "rgba(22, 22, 24, 0.7)",    // Фон карточек при наведении
+    text:         "#F3F3F4",                  // Основной текст
+    textMuted:    "#8B8B93",                  // Приглушённый текст
     border:       "rgba(255, 255, 255, 0.07)",// Тонкая стеклянная граница
     success:      "#22C55E",                  // Зелёный статус
-    glow:         "rgba(37, 99, 235, 0.22)"   // Мягкая тень кнопок
+    glow:         "rgba(255, 255, 255, 0.1)"  // Мягкая тень кнопок
   },
 
   // ─── НАВИГАЦИЯ ───────────────────────────────────────────
@@ -72,12 +71,6 @@ const CONFIG = {
     }
   },
 
-  // ─── СКРИНШОТЫ ───────────────────────────────────────────
-  screenshots: [
-    { url: "/static/shot1.png", alt: "SnowClient — главный скриншот" },
-    { url: "/static/shot2.png", alt: "SnowClient — скриншот 2" },
-    { url: "/static/shot3.png", alt: "SnowClient — скриншот 3" }
-  ],
 
   // ─── ФУНКЦИИ (FEATURES) ──────────────────────────────────
   features: {
@@ -211,8 +204,6 @@ const CONFIG = {
       sectionVideo:          "Видеообзор",
       videoSubtitle:         "Посмотрите на реальный геймплей с нашим клиентом.",
       eyebrowScreens:        "Галерея",
-      sectionScreenshots:    "Скриншоты",
-      screenshotsSubtitle:   "Несколько снимков прямо из игры с нашим клиентом.",
       eyebrowPricing:        "Тарифы",
       sectionPricing:        "Тарифы",
       pricingSubtitle:       "Выберите подходящий план. Все планы включают полный доступ к функционалу.",
@@ -276,6 +267,12 @@ const CONFIG = {
       cabTabLoader:          "Скачать лоадер",
       cabTabKeys:            "Ключи и оплата",
       cabTabSettings:        "Настройки",
+      cabNavSection:         "Разделы",
+      cabCrumbRoot:          "Кабинет",
+      cabTabLoaderShort:     "Лоадер",
+      cabTabKeysShort:       "Ключи",
+      cabNavLocked:          "Нужна подписка",
+      cabQuickKey:           "Активировать ключ",
       cabBalance:            "Баланс",
       cabBalanceSub:         "Внутренний счёт аккаунта",
       cabRole:               "Роль",
@@ -347,8 +344,6 @@ const CONFIG = {
       sectionVideo:          "Video Review",
       videoSubtitle:         "Watch real gameplay footage with our client.",
       eyebrowScreens:        "Gallery",
-      sectionScreenshots:    "Screenshots",
-      screenshotsSubtitle:   "A few shots straight from the game with our client.",
       eyebrowPricing:        "Pricing",
       sectionPricing:        "Pricing",
       pricingSubtitle:       "Choose a suitable plan. All plans include full access to features.",
@@ -412,6 +407,12 @@ const CONFIG = {
       cabTabLoader:          "Download Loader",
       cabTabKeys:            "Keys & Payment",
       cabTabSettings:        "Settings",
+      cabNavSection:         "Sections",
+      cabCrumbRoot:          "Account",
+      cabTabLoaderShort:     "Loader",
+      cabTabKeysShort:       "Keys",
+      cabNavLocked:          "Subscription required",
+      cabQuickKey:           "Activate a key",
       cabBalance:            "Balance",
       cabBalanceSub:         "Account wallet balance",
       cabRole:               "Role",
@@ -483,8 +484,6 @@ const CONFIG = {
       sectionVideo:          "Відеоогляд",
       videoSubtitle:         "Перегляньте реальний геймплей з нашим клієнтом.",
       eyebrowScreens:        "Галерея",
-      sectionScreenshots:    "Скріншоти",
-      screenshotsSubtitle:   "Кілька знімків прямо з гри з нашим клієнтом.",
       eyebrowPricing:        "Тарифи",
       sectionPricing:        "Тарифи",
       pricingSubtitle:       "Оберіть відповідний план. Всі плани включають повний доступ.",
@@ -548,6 +547,12 @@ const CONFIG = {
       cabTabLoader:          "Завантажити лоадер",
       cabTabKeys:            "Ключі та оплата",
       cabTabSettings:        "Налаштування",
+      cabNavSection:         "Розділи",
+      cabCrumbRoot:          "Кабінет",
+      cabTabLoaderShort:     "Лоадер",
+      cabTabKeysShort:       "Ключі",
+      cabNavLocked:          "Потрібна підписка",
+      cabQuickKey:           "Активувати ключ",
       cabBalance:            "Баланс",
       cabBalanceSub:         "Внутрішній рахунок акаунта",
       cabRole:               "Роль",
@@ -619,8 +624,6 @@ const CONFIG = {
       sectionVideo:          "Recenzja wideo",
       videoSubtitle:         "Obejrzyj prawdziwą rozgrywkę z naszym klientem.",
       eyebrowScreens:        "Galeria",
-      sectionScreenshots:    "Zrzuty ekranu",
-      screenshotsSubtitle:   "Kilka zdjęć prosto z gry z naszym klientem.",
       eyebrowPricing:        "Cennik",
       sectionPricing:        "Cennik",
       pricingSubtitle:       "Wybierz odpowiedni plan. Wszystkie plany obejmują pełny dostęp.",
@@ -684,6 +687,12 @@ const CONFIG = {
       cabTabLoader:          "Pobierz loader",
       cabTabKeys:            "Klucze i płatność",
       cabTabSettings:        "Ustawienia",
+      cabNavSection:         "Sekcje",
+      cabCrumbRoot:          "Konto",
+      cabTabLoaderShort:     "Loader",
+      cabTabKeysShort:       "Klucze",
+      cabNavLocked:          "Wymagana subskrypcja",
+      cabQuickKey:           "Aktywuj klucz",
       cabBalance:            "Saldo",
       cabBalanceSub:         "Środki na koncie",
       cabRole:               "Rola",
@@ -755,8 +764,6 @@ const CONFIG = {
       sectionVideo:          "Video İnceleme",
       videoSubtitle:         "Müşterimizle gerçek oynanışı izleyin.",
       eyebrowScreens:        "Galeri",
-      sectionScreenshots:    "Ekran Görüntüleri",
-      screenshotsSubtitle:   "Müşterimizle oyundan birkaç görüntü.",
       eyebrowPricing:        "Fiyatlar",
       sectionPricing:        "Fiyatlandırma",
       pricingSubtitle:       "Uygun bir plan seçin. Tüm planlar tam erişim içerir.",
@@ -820,6 +827,12 @@ const CONFIG = {
       cabTabLoader:          "Loader İndir",
       cabTabKeys:            "Anahtarlar ve Ödeme",
       cabTabSettings:        "Ayarlar",
+      cabNavSection:         "Bölümler",
+      cabCrumbRoot:          "Hesap",
+      cabTabLoaderShort:     "Loader",
+      cabTabKeysShort:       "Anahtarlar",
+      cabNavLocked:          "Abonelik gerekli",
+      cabQuickKey:           "Anahtarı etkinleştir",
       cabBalance:            "Bakiye",
       cabBalanceSub:         "Hesap bakiyesi",
       cabRole:               "Rol",

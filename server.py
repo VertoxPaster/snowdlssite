@@ -23,19 +23,17 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
-TRUST_PROXY = os.environ.get("TRUST_PROXY", "1") == "1"  # 0, если сервер доступен напрямую без прокси
+TRUST_PROXY = os.environ.get("TRUST_PROXY", "0") == "1"  # 1 только если перед сервером стоит доверенный reverse-proxy
 DATABASE_URL = os.environ["DATABASE_URL"]
 PORT = int(os.environ.get("PORT", "8080"))
 MAX_JSON = 64 * 1024
 MAX_UPLOAD = 3 * 1024 * 1024
 UPLOAD_PATHS = ("/api/profile/me/avatar", "/api/profile/me/cover")
 MIN_PW, MAX_PW = 8, 128
-LOADER_TTL = 12 * 3600
+LOADER_TTL = 300  # 5 минут, одноразовый токен
 TERMS_VERSION = "2026-11-24"
-# Токен лоадера (scope='loader') может вызывать только эти методы
+# Токен лоадера (scope='loader') может вызывать только скачивание лоадера и обмен сессии
 LOADER_ALLOWED = {
-    ("GET", "/api/auth/me"),
-    ("GET", "/api/users/products"),
     ("GET", "/api/loader/download"),
 }
 
@@ -403,6 +401,41 @@ def add_balance(uid, amount, deposit=True):
 
 # ---------------------------------------------------------------- LAUNCHER API (HWID BINDING)
 
+# ---------------------------------------------------------------- LAUNCHER API (HWID BINDING)
+
+def _client_hashes() -> dict:
+    stub_h = os.environ.get("STUB_SHA256", "").strip().lower()
+    pak_h = os.environ.get("PAK_SHA256", "").strip().lower()
+    dll_h = os.environ.get("DLL_SHA256", "").strip().lower()
+    manifest_path = os.path.join(ROOT, "manifest.json")
+    if (not stub_h or not pak_h) and os.path.isfile(manifest_path):
+        try:
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                m = json.load(f)
+            stub_h = stub_h or str(m.get("stubSha256") or "").strip().lower()
+            pak_h = pak_h or str(m.get("pakSha256") or "").strip().lower()
+            dll_h = dll_h or str(m.get("dllSha256") or "").strip().lower()
+        except Exception:
+            pass
+    return {
+        "stub_sha256": stub_h,
+        "pak_sha256": pak_h,
+        "dll_sha256": dll_h,
+    }
+
+
+def _bind_or_verify_hwid(user_id: int, hwid: str) -> bool:
+    bound = _db1(
+        "UPDATE users SET hwid=?, hwid_bound_at=? WHERE id=? AND (hwid IS NULL OR hwid='') RETURNING hwid",
+        (hwid, now_iso(), user_id),
+    )
+    if bound:
+        return True
+    row = _db1("SELECT hwid FROM users WHERE id=?", (user_id,))
+    saved_hwid = ((row or {}).get("hwid") or "").strip()
+    return bool(saved_hwid) and secrets.compare_digest(saved_hwid, hwid)
+
+
 def make_key_envelope(hwid: str, nonce_hex: str) -> str:
     master_key = bytes.fromhex(os.environ["MOD_MASTER_KEY"])
     transport_key = bytes.fromhex(os.environ["DLL_TRANSPORT_KEY"])
@@ -412,12 +445,13 @@ def make_key_envelope(hwid: str, nonce_hex: str) -> str:
 
     iv = os.urandom(12)
     aad = nonce_hex.encode("utf-8")
-    ct_and_tag = AESGCM(wrap_key).encrypt(iv, master_key, aad)  # 32B ciphertext + 16B tag
+    ct_and_tag = AESGCM(wrap_key).encrypt(iv, master_key, aad)
 
     ciphertext = ct_and_tag[:-16]
     tag = ct_and_tag[-16:]
-    envelope = iv + tag + ciphertext  # 60 байт: 12B iv + 16B tag + 32B ciphertext
+    envelope = iv + tag + ciphertext
     return base64.b64encode(envelope).decode("ascii")
+
 
 @route("POST", "/api/launcher/auth")
 def launcher_auth(h, body, user):
@@ -459,13 +493,7 @@ def launcher_auth(h, body, user):
     if not has_active_subscription(u):
         return h.json_out({"status": "error", "message": "Нет активной подписки. Оформите на сайте"}, 403)
 
-    saved_hwid = (u.get("hwid") or "").strip()
-    if not saved_hwid:
-        _db(
-            "UPDATE users SET hwid=?, hwid_bound_at=? WHERE id=?",
-            (hwid, now_iso(), u["id"]),
-        )
-    elif not secrets.compare_digest(saved_hwid, hwid):
+    if not _bind_or_verify_hwid(u["id"], hwid):
         return h.json_out(
             {"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"},
             403,
@@ -476,7 +504,9 @@ def launcher_auth(h, body, user):
         "username": u["username"],
         "role": u["role"],
         "key_envelope": make_key_envelope(hwid, nonce),
+        **_client_hashes(),
     })
+
 
 @route("POST", "/api/launcher/web-session")
 def launcher_web_session(h, body, user):
@@ -499,10 +529,13 @@ def launcher_web_session(h, body, user):
     if not has_active_subscription(u):
         return h.json_out({"status": "error", "message": "Нет активной подписки"}, 403)
 
-    saved_hwid = (u.get("hwid") or "").strip()
-    if not saved_hwid:
-        _db("UPDATE users SET hwid=?, hwid_bound_at=? WHERE id=?", (hwid, now_iso(), u["id"]))
-    elif not secrets.compare_digest(saved_hwid, hwid):
+    # Одноразовый loader-токен сгорает сразу при обмене на игровую сессию
+    if u.get("_scope") == "loader":
+        burned = _db1("DELETE FROM tokens WHERE token=? AND scope='loader' RETURNING token", (u["_token"],))
+        if not burned:
+            return h.json_out({"status": "error", "message": "Токен лоадера уже использован"}, 401)
+
+    if not _bind_or_verify_hwid(u["id"], hwid):
         return h.json_out({"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"}, 403)
 
     return h.json_out({
@@ -510,6 +543,7 @@ def launcher_web_session(h, body, user):
         "username": u["username"],
         "role": u["role"],
         "key_envelope": make_key_envelope(hwid, nonce),
+        **_client_hashes(),
     })
 
 @route("GET", "/api/loader/download")
@@ -1248,10 +1282,16 @@ def num(v):
 def admin_users(h, body, user):
     if not require_admin(user):
         return h.json_out({"message": "Доступ только для админа"}, 403)
-    rows = _db("SELECT * FROM users ORDER BY id")
+    rows = _db(
+        "SELECT u.*, COALESCE(p.c, 0) AS purchases_cnt, COALESCE(i.c, 0) AS cosmetics_cnt"
+        " FROM users u"
+        " LEFT JOIN (SELECT user_id, COUNT(*) c FROM purchases GROUP BY user_id) p ON p.user_id = u.id"
+        " LEFT JOIN (SELECT user_id, COUNT(*) c FROM inventory GROUP BY user_id) i ON i.user_id = u.id"
+        " ORDER BY u.id"
+    )
     out = []
     for r in rows:
-        d = {
+        out.append({
             "id": r["id"],
             "username": r["username"],
             "email": r["email"],
@@ -1267,12 +1307,10 @@ def admin_users(h, body, user):
             "hwid_bound_at": r.get("hwid_bound_at") or "",
             "created_at": r["created_at"],
             "banned": bool(r["banned"]),
-        }
-        d["purchases"] = _db1("SELECT COUNT(*) c FROM purchases WHERE user_id=?", (r["id"],))["c"]
-        d["cosmetics"] = _db1("SELECT COUNT(*) c FROM inventory WHERE user_id=?", (r["id"],))["c"]
-        out.append(d)
+            "purchases": r["purchases_cnt"],
+            "cosmetics": r["cosmetics_cnt"],
+        })
     return h.json_out({"success": True, "data": out, "count": len(out)})
-
 
 @route("POST", "/api/admin/users/update")
 def admin_update(h, body, user):
@@ -1704,16 +1742,18 @@ def mfa_status(h, body, user):
 
 @route("POST", "/api/admin/2fa/setup")
 def mfa_setup(h, body, user):
-    if not is_admin_role(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
+    if _mfa_guard(h, user):
+        return
     if user["totp_enabled"]:
         return h.json_out({"message": "2FA уже включена. Сначала отключите её"}, 400)
+    if not check_password(str(body.get("password") or ""), user["pass_hash"]):
+        note_fail("mfa:%s" % user["id"])
+        return h.json_out({"message": "Неверный пароль"}, 400)
     secret = user["totp_secret"] or base64.b32encode(os.urandom(20)).decode()
     if not user["totp_secret"]:
         _db("UPDATE users SET totp_secret=? WHERE id=?", (secret, user["id"]))
     uri = "otpauth://totp/Admin:%s?secret=%s&issuer=Admin&period=30&digits=6" % (user["username"], secret)
     h.json_out({"success": True, "secret": secret, "uri": uri})
-
 
 @route("POST", "/api/admin/2fa/enable")
 def mfa_enable(h, body, user):
@@ -1958,10 +1998,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if mo:
                     f(self, mo, body, user)
                     return
-        if method == "GET":
-            self.json_out({"success": True, "data": [], "count": 0})
-        else:
-            self.json_out({"message": "Не найдено"}, 404)
+        self.json_out({"message": "Не найдено"}, 404)
 
     def _handle(self, method):
         try:

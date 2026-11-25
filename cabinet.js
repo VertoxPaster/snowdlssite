@@ -74,10 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Escape') closeLangDropdown();
   });
 
-  const hashTab = location.hash.replace('#', '');
-  if (['overview', 'loader', 'keys', 'settings'].includes(hashTab)) {
-    switchCabTab(hashTab);
-  }
+  setupCabNav();
 
   await bootCabinet();
 });
@@ -192,6 +189,8 @@ function renderProfile() {
     if (bindNote) bindNote.textContent = tt('cabHwidHint');
   }
 
+  updateNavBadges(hasSub);
+
   // Блок скачивания лоадера
   document.getElementById('loaderAllowedBox').hidden = !hasSub;
   document.getElementById('loaderLockedBox').hidden = hasSub;
@@ -211,14 +210,97 @@ function renderAvatar(el, u) {
   }
 }
 
-function switchCabTab(tab) {
-  document.querySelectorAll('.cab-nav-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.tab === tab);
+/* ── Навигация кабинета ── */
+const CAB_TABS = ['overview', 'loader', 'keys', 'settings'];
+const CAB_TAB_KEYS = { overview: 'cabTabOverview', loader: 'cabTabLoader', keys: 'cabTabKeys', settings: 'cabTabSettings' };
+let cabTab = 'overview';
+
+function readTabFromUrl() {
+  const h = location.hash.replace('#', '');
+  if (CAB_TABS.includes(h)) return h;
+  try {
+    const saved = sessionStorage.getItem('cab_tab');
+    if (CAB_TABS.includes(saved)) return saved;
+  } catch {}
+  return 'overview';
+}
+
+function updateCrumb() {
+  const cur = document.getElementById('cabCrumbCurrent');
+  if (cur) cur.textContent = tt(CAB_TAB_KEYS[cabTab]);
+  document.title = tt(CAB_TAB_KEYS[cabTab]) + ' — ' + tt('cabTitle') + ' — SnowClient';
+}
+
+function switchCabTab(tab, opts = {}) {
+  if (!CAB_TABS.includes(tab)) tab = 'overview';
+  const { push = true, focus = false, scroll = true } = opts;
+  cabTab = tab;
+
+  document.querySelectorAll('[data-tab]').forEach(b => {
+    const on = b.dataset.tab === tab;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+    b.tabIndex = on ? 0 : -1;
+    if (on && focus && b.offsetParent !== null) b.focus({ preventScroll: true });
   });
   document.querySelectorAll('.cab-panel').forEach(p => {
     p.classList.toggle('active', p.id === 'panel-' + tab);
   });
-  history.replaceState(null, '', '#' + tab);
+
+  updateCrumb();
+  try { sessionStorage.setItem('cab_tab', tab); } catch {}
+
+  if (push && location.hash !== '#' + tab) {
+    history.pushState(null, '', '#' + tab);
+  }
+
+  if (scroll) {
+    const layout = document.querySelector('.cab-layout');
+    if (layout && layout.getBoundingClientRect().top < 70) {
+      layout.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+}
+
+function setupCabNav() {
+  switchCabTab(readTabFromUrl(), { push: false, scroll: false });
+  if (location.hash.replace('#', '') !== cabTab) {
+    history.replaceState(null, '', '#' + cabTab);
+  }
+
+  // Назад / вперёд в браузере и ручная правка хэша
+  window.addEventListener('hashchange', () => {
+    const h = location.hash.replace('#', '');
+    if (CAB_TABS.includes(h) && h !== cabTab) switchCabTab(h, { push: false });
+  });
+
+  // Стрелки внутри списка вкладок (боковое меню и нижняя панель)
+  document.querySelectorAll('[role="tablist"]').forEach(list => {
+    list.addEventListener('keydown', e => {
+      const keys = ['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+      if (!keys.includes(e.key)) return;
+      e.preventDefault();
+      let i = CAB_TABS.indexOf(cabTab);
+      if (e.key === 'Home') i = 0;
+      else if (e.key === 'End') i = CAB_TABS.length - 1;
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') i = (i + 1) % CAB_TABS.length;
+      else i = (i - 1 + CAB_TABS.length) % CAB_TABS.length;
+      switchCabTab(CAB_TABS[i], { focus: true, scroll: false });
+    });
+  });
+
+  // Горячие клавиши 1–4
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target;
+    if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= CAB_TABS.length) switchCabTab(CAB_TABS[n - 1]);
+  });
+}
+
+function updateNavBadges(hasSub) {
+  document.querySelectorAll('[data-badge="loader"]').forEach(el => { el.hidden = hasSub; });
 }
 
 function fmtDate(iso) {
@@ -492,6 +574,11 @@ function setLanguage(lang) {
     const val = tt(key);
     if (val && val !== key) el.textContent = val;
   });
+
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = tt(el.getAttribute('data-i18n-title'));
+  });
+  updateCrumb();
 
   const keyInput = document.getElementById('cabKeyInput');
   if (keyInput) keyInput.placeholder = tt('cabKeyPh');

@@ -1,17 +1,24 @@
 (function () {
-    // Порт принимаем ТОЛЬКО как число 1024–65535. Иначе строка вроде "1@evil.com" превращала
-    // адрес в http://127.0.0.1:1@evil.com/auth и токен уходил на чужой сервер.
     const validPort = p => (/^\d{4,5}$/.test(String(p || '')) && +p >= 1024 && +p <= 65535) ? String(+p) : null;
+    const validState = s => /^[0-9a-fA-F]{16,64}$/.test(String(s || '')) ? String(s) : null;
+
     const urlParams = new URLSearchParams(window.location.search);
     const portFromUrl = validPort(urlParams.get('loader_port'));
+    const stateFromUrl = validState(urlParams.get('state'));
 
-    if (portFromUrl) {
+    if (portFromUrl && stateFromUrl) {
         sessionStorage.setItem('snow_loader_port', portFromUrl);
+        sessionStorage.setItem('snow_loader_state', stateFromUrl);
         window.history.replaceState({}, document.title, window.location.pathname);
     }
 
     const activePort = validPort(sessionStorage.getItem('snow_loader_port'));
-    if (!activePort) { sessionStorage.removeItem('snow_loader_port'); return; }
+    const activeState = validState(sessionStorage.getItem('snow_loader_state'));
+    if (!activePort || !activeState) {
+        sessionStorage.removeItem('snow_loader_port');
+        sessionStorage.removeItem('snow_loader_state');
+        return;
+    }
 
     function showToast(text, isSuccess = false) {
         let toast = document.getElementById('snow-loader-toast');
@@ -41,7 +48,8 @@
             username: String(userData.username),
             uid: String(userData.uid || '1'),
             sub: String(userData.sub || 'Active'),
-            token: String(userData.token || '')
+            token: String(userData.token || ''),
+            state: activeState
         };
 
         try {
@@ -56,6 +64,7 @@
             if (response.ok) {
                 alreadySent = true;
                 sessionStorage.removeItem('snow_loader_port');
+                sessionStorage.removeItem('snow_loader_state');
                 showToast('Успешный вход! Вернитесь в SnowClient :)', true);
             } else {
                 showToast('Лоадер отклонил вход (код ' + response.status + ')');
@@ -82,8 +91,6 @@
             const j = await r.json();
             const u = j.data || j.user;
             if (u && u.username) {
-                // В лоадер уходит отдельный короткоживущий токен (12 ч, ограниченные права),
-                // а не основной токен сессии сайта.
                 const tr = await fetch('/api/auth/loader-token', {
                     method: 'POST',
                     headers: { 'Authorization': 'Bearer ' + token }
@@ -104,8 +111,6 @@
         }
     }
 
-    // Не долбим сервер каждую секунду: реагируем на вход в другой вкладке и редко опрашиваем,
-    // максимум 10 минут, потом останавливаемся.
     checkLoggedInUser();
     window.addEventListener('storage', e => { if (e.key === 'vortex_token') checkLoggedInUser(); });
     const startedAt = Date.now();

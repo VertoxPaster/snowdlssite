@@ -17,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupMarquee();
   buildLangDropdown();
   setLanguage(currentLang);
-  buildScreenshots();
   populateContact();
   setupNavScroll();
   setupReveal();
@@ -401,27 +400,6 @@ function buildFeatures() {
       </div>
       <div class="feature-title">${f.title}</div>
       <div class="feature-desc">${f.desc}</div>
-    </div>
-  `).join('');
-
-  observeRevealElements();
-}
-
-/* ════════════════════════════════════════
-   SCREENSHOTS
-════════════════════════════════════════ */
-function buildScreenshots() {
-  const grid  = document.getElementById('screenshotsGrid');
-  const shots = CONFIG.screenshots;
-
-  grid.innerHTML = shots.map((s, i) => `
-    <div class="screenshot-item ${i === 0 ? 'screenshot-main' : ''} reveal reveal-d${i + 1}">
-      <img
-        src="${s.url}"
-        alt="${s.alt}"
-        loading="lazy"
-        onerror="this.closest('.screenshot-item').style.display='none'"
-      />
     </div>
   `).join('');
 
