@@ -110,7 +110,7 @@
         vec3 color = mix(colVoid, colDark, smokeMask);
         color = mix(color, colMid, smokeMask * wispMask * 0.85);
         color += colAccent * pow(clamp(f * wispMask, 0.0, 1.0), 2.6) * 0.55;
-        color *= 2.1;
+        color *= 2.7;
 
         // Лёгкая виньетка по краям экрана
         float dist = length((uv - 0.5) * vec2(1.15, 1.05));
