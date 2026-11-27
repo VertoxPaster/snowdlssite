@@ -1550,38 +1550,38 @@ section { position: relative; z-index: 2; padding: 110px 0; }
   line-height: 1.6;
 }
 
-.loader-hero-card { margin-bottom: 16px; }
-.loader-badge-row {
+.client-hero-card { margin-bottom: 16px; }
+.client-badge-row {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
-.loader-card-title {
+.client-card-title {
   font-size: 1.45rem !important;
   font-weight: 800 !important;
   letter-spacing: -0.4px;
   margin-bottom: 8px !important;
 }
-.loader-card-desc {
+.client-card-desc {
   font-size: 0.9rem;
   color: var(--text-muted);
   max-width: 600px;
   margin-bottom: 22px;
   line-height: 1.65;
 }
-.loader-dl-row {
+.client-dl-row {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
 }
-.loader-dl-row .btn {
+.client-dl-row .btn {
   height: 44px;
   padding: 0 22px;
 }
-.loader-meta-note {
+.client-meta-note {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
@@ -1596,7 +1596,7 @@ section { position: relative; z-index: 2; padding: 110px 0; }
   font-weight: 600;
 }
 
-.loader-locked {
+.client-locked {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1609,25 +1609,25 @@ section { position: relative; z-index: 2; padding: 110px 0; }
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(248, 113, 113, 0.24);
 }
-.loader-locked-text strong {
+.client-locked-text strong {
   display: block;
   font-size: 0.94rem;
   color: #FCA5A5;
   margin-bottom: 4px;
 }
-.loader-locked-text p {
+.client-locked-text p {
   font-size: 0.84rem;
   color: var(--text-muted);
   max-width: 480px;
   line-height: 1.55;
 }
-.loader-locked-btns {
+.client-locked-btns {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
-.loader-locked-btns .btn {
+.client-locked-btns .btn {
   height: 40px;
   padding: 0 16px;
   font-size: 0.84rem;
@@ -1818,13 +1818,13 @@ section { position: relative; z-index: 2; padding: 110px 0; }
 .cab-step-card { align-items: center; text-align: center; }
 .cab-step-num { margin-left: auto; margin-right: auto; }
 
-.loader-hero-card { text-align: center; }
-.loader-badge-row,
-.loader-dl-row,
-.loader-locked-btns { justify-content: center; }
-.loader-card-desc { margin-left: auto; margin-right: auto; }
-.loader-locked { flex-direction: column; text-align: center; }
-.loader-locked-text p { margin: 0 auto; }
+.client-hero-card { text-align: center; }
+.client-badge-row,
+.client-dl-row,
+.client-locked-btns { justify-content: center; }
+.client-card-desc { margin-left: auto; margin-right: auto; }
+.client-locked { flex-direction: column; text-align: center; }
+.client-locked-text p { margin: 0 auto; }
 
 /* ────────────────────────────────────────────
    СОГЛАШЕНИЕ ПРИ РЕГИСТРАЦИИ
@@ -2033,4 +2033,80 @@ section { position: relative; z-index: 2; padding: 110px 0; }
   }
   .cab-tabbar-dot[hidden] { display: none; }
   .cab-page ~ .toast { bottom: 96px; }
+}
+
+/* ============================================================
+   v9 — плоский дизайн: снегопад-шейдер + стеклянные панели с блюром.
+   Без градиентов, свечений, 3D-наклонов и пустых зон.
+   ============================================================ */
+:root {
+  --bg-card:       rgba(11, 14, 19, 0.58);
+  --bg-card-hover: rgba(16, 20, 27, 0.68);
+  --border:        rgba(255, 255, 255, 0.08);
+  --border-light:  rgba(255, 255, 255, 0.14);
+  --blur:          blur(16px) saturate(110%);
+  --blur-heavy:    blur(22px) saturate(110%);
+}
+
+/* фон: только шейдер, всё остальное убрано */
+.bg-base { background: #06080b; }
+.bg-base::after { display: none; }
+.smoke-canvas { opacity: 1; mix-blend-mode: normal; }
+.bg-grid, .cursor-glow, .aurora, .scroll-hint, .float-chip { display: none !important; }
+.spot::after { display: none; }
+.hero-video-placeholder, .video-embed-placeholder { background: none; }
+.marquee { mask-image: none; -webkit-mask-image: none; padding: 12px 0; }
+.footer-mark { display: none; }
+
+/* без наклонов, магнитов и парения */
+.tilt, .magnetic { transform: none !important; }
+.hero-float { animation: none; }
+.feature-card.visible.tilting:hover,
+.pricing-card.visible.tilting:hover { transform: translateY(-3px) !important; }
+.feature-card, .pricing-card { transform-style: flat; }
+
+/* поверхности: плоские, спокойные */
+.nav-pill, .feature-card, .pricing-card, .support-card, .glass, .modal,
+.cab-card, .cab-stat, .hero-video-frame, .video-embed-wrap, .lang-dropdown,
+.mobile-menu, .toast { box-shadow: none; }
+.pricing-card.popular,
+.pricing-card.popular.visible:hover { background: var(--bg-card-hover); border-color: rgba(255, 255, 255, 0.28); }
+.navbar.scrolled .nav-pill { box-shadow: none; }
+.btn-primary, .btn-primary:hover, .nav-buy { box-shadow: none; }
+
+.nav-pill, .feature-card, .pricing-card, .support-card, .glass, .cab-card,
+.cab-stat, .cab-hero, .cab-sidebar, .hero-video-frame, .video-embed-wrap,
+.legal-card, .modal { border-radius: 12px; }
+.btn, .nav-buy, .lang-btn, .nav-auth, .chip, .field input { border-radius: 8px; }
+.chip { border-radius: 6px; }
+
+/* меньше пустоты */
+section { padding: 72px 0; }
+.section-header { margin-bottom: 32px; }
+.hero { min-height: 0; padding: 120px 0 64px; }
+.hero-inner { gap: 40px; }
+.hero h1 { font-size: clamp(3rem, 6.4vw, 5.2rem); letter-spacing: -2.5px; margin-bottom: 14px; }
+.hero-desc { margin-bottom: 24px; }
+.hero-actions { margin-bottom: 20px; }
+.feature-card { min-height: 0; padding: 24px; }
+.feature-icon-wrap { margin-bottom: 14px; }
+.pricing-card { padding: 24px 22px; }
+.support-card { padding: 24px 20px; }
+.footer { padding-top: 40px; }
+.footer-inner { margin-bottom: 28px; }
+.cab-page { padding: 88px 0 48px; min-height: 0; }
+.cab-card { padding: 20px 22px; }
+.legal-page { min-height: 0; padding: 88px 20px 48px; }
+.legal-card { padding: 28px 32px; }
+.legal-text .legal-meta { margin-bottom: 10px; }
+
+@media (min-width: 1025px) {
+  .features-grid { grid-template-columns: repeat(3, 1fr); }
+  .feature-card,
+  .feature-card:nth-child(n) { grid-column: span 1; }
+}
+@media (max-width: 640px) {
+  section { padding: 48px 0; }
+  .hero { padding-top: 100px; }
+  .legal-card { padding: 20px 16px; }
 }

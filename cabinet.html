@@ -94,10 +94,10 @@
           <span class="cab-nav-label" data-i18n="cabTabOverview">Обзор</span>
           <kbd class="cab-nav-key" aria-hidden="true">1</kbd>
         </button>
-        <button class="cab-nav-btn" type="button" role="tab" id="tab-loader" data-tab="loader" aria-controls="panel-loader" aria-selected="false" tabindex="-1" onclick="switchCabTab('loader')">
+        <button class="cab-nav-btn" type="button" role="tab" id="tab-client" data-tab="client" aria-controls="panel-client" aria-selected="false" tabindex="-1" onclick="switchCabTab('client')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span class="cab-nav-label" data-i18n="cabTabLoader">Скачать лоадер</span>
-          <span class="cab-nav-badge" data-badge="loader" hidden title="Нужна подписка" data-i18n-title="cabNavLocked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></span>
+          <span class="cab-nav-label" data-i18n="cabTabClient">Скачать клиент</span>
+          <span class="cab-nav-badge" data-badge="client" hidden title="Нужна подписка" data-i18n-title="cabNavLocked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></span>
           <kbd class="cab-nav-key" aria-hidden="true">2</kbd>
         </button>
         <button class="cab-nav-btn" type="button" role="tab" id="tab-keys" data-tab="keys" aria-controls="panel-keys" aria-selected="false" tabindex="-1" onclick="switchCabTab('keys')">
@@ -148,7 +148,7 @@
 
             <div class="cab-stat glass spot">
               <div class="cab-stat-head">
-                <span class="cab-stat-label" data-i18n="cabHwidLabel">Привязка ПК (HWID)</span>
+                <span class="cab-stat-label" data-i18n="cabHwidLabel">Привязка к ПК</span>
               </div>
               <div class="cab-stat-value cab-hwid-val" id="cabHwidState">—</div>
               <div class="cab-stat-sub" id="cabHwidDate">—</div>
@@ -156,9 +156,9 @@
           </div>
 
           <div class="cab-quick" aria-label="Быстрые действия">
-            <button class="cab-quick-btn glass spot" type="button" onclick="switchCabTab('loader')">
+            <button class="cab-quick-btn glass spot" type="button" onclick="switchCabTab('client')">
               <span class="cab-quick-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
-              <span class="cab-quick-text" data-i18n="cabTabLoader">Скачать лоадер</span>
+              <span class="cab-quick-text" data-i18n="cabTabClient">Скачать клиент</span>
               <svg class="cab-quick-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </button>
             <button class="cab-quick-btn glass spot" type="button" onclick="switchCabTab('keys')">
@@ -176,50 +176,50 @@
           <div class="cab-card glass">
             <div class="cab-card-head">
               <h2 data-i18n="cabPurchases">Мои подписки и покупки</h2>
-              <button class="btn btn-outline" type="button" style="height:34px;padding:0 14px;font-size:0.8rem;" onclick="switchCabTab('loader')" data-i18n="cabGoLoader">Перейти к лоадеру →</button>
+              <button class="btn btn-outline" type="button" style="height:34px;padding:0 14px;font-size:0.8rem;" onclick="switchCabTab('client')" data-i18n="cabGoClient">Перейти к клиенту →</button>
             </div>
             <ul class="cab-purchases" id="cabPurchases"></ul>
           </div>
         </section>
 
         <!-- ВКЛАДКА 2: СКАЧАТЬ ЛОАДЕР -->
-        <section class="cab-panel" id="panel-loader" role="tabpanel" aria-labelledby="tab-loader" tabindex="-1">
-          <div class="cab-card glass spot loader-hero-card">
-            <div class="loader-badge-row">
+        <section class="cab-panel" id="panel-client" role="tabpanel" aria-labelledby="tab-client" tabindex="-1">
+          <div class="cab-card glass spot client-hero-card">
+            <div class="client-badge-row">
               <span class="chip">Windows 10 / 11 (x64)</span>
               <span class="chip">Minecraft 1.21.11 · Fabric</span>
-              <span class="chip" id="loaderHwidChip">HWID Auto-Bind</span>
+              <span class="chip" id="clientHwidChip">Привязка к ПК</span>
             </div>
 
-            <h2 class="loader-card-title" data-i18n="loaderTitle">SnowClient Loader</h2>
-            <p class="loader-card-desc" data-i18n="loaderDesc">
-              Официальный лаунчер для запуска клиента, автоматической загрузки Java 21, модов и модуля защиты.
+            <h2 class="client-card-title" data-i18n="clientTitle">SnowClient</h2>
+            <p class="client-card-desc" data-i18n="clientDesc">
+              Скачайте клиент и запускайте Minecraft 1.21.11 с SnowClient.
             </p>
 
             <!-- Блок если подписка ЕСТЬ -->
-            <div id="loaderAllowedBox" hidden>
-              <div class="loader-dl-row">
-                <button class="btn btn-primary" id="btnDownloadLoader" type="button" onclick="downloadLoader()">
+            <div id="clientAllowedBox" hidden>
+              <div class="client-dl-row">
+                <button class="btn btn-primary" id="btnDownloadClient" type="button" onclick="downloadClient()">
                   <span class="spinner"></span>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
                     <polyline points="7 10 12 15 17 10"/>
                     <line x1="12" y1="15" x2="12" y2="3"/>
                   </svg>
-                  <span data-i18n="loaderBtnDownload">Скачать SnowClient.exe</span>
+                  <span data-i18n="clientBtnDownload">Скачать SnowClient.exe</span>
                 </button>
-                <span class="loader-meta-note" id="loaderBindNote"></span>
+                <span class="client-meta-note" id="clientBindNote"></span>
               </div>
             </div>
 
             <!-- Блок если подписки НЕТ -->
-            <div id="loaderLockedBox" class="loader-locked" hidden>
-              <div class="loader-locked-text">
-                <strong data-i18n="loaderNoSubTitle">Требуется активная подписка</strong>
-                <p data-i18n="loaderNoSubDesc">Приобретите подписку на FunPay или активируйте ключ во вкладке «Ключи и оплата», чтобы открыть доступ к скачиванию.</p>
+            <div id="clientLockedBox" class="client-locked" hidden>
+              <div class="client-locked-text">
+                <strong data-i18n="clientNoSubTitle">Требуется активная подписка</strong>
+                <p data-i18n="clientNoSubDesc">Приобретите подписку на FunPay или активируйте ключ во вкладке «Ключи и оплата», чтобы открыть доступ к скачиванию.</p>
               </div>
-              <div class="loader-locked-btns">
-                <a class="btn btn-primary" id="cabBuyLoaderBtn" href="https://funpay.com/users/9984257/" target="_blank" rel="noopener" data-i18n="cabBuyFunpay">Купить на FunPay</a>
+              <div class="client-locked-btns">
+                <a class="btn btn-primary" id="cabBuyClientBtn" href="https://funpay.com/users/9984257/" target="_blank" rel="noopener" data-i18n="cabBuyFunpay">Купить на FunPay</a>
                 <button class="btn btn-outline" type="button" onclick="switchCabTab('keys')" data-i18n="cabActivate">Активировать ключ</button>
               </div>
             </div>
@@ -230,17 +230,17 @@
             <div class="cab-card cab-step-card glass spot">
               <div class="cab-step-num">01</div>
               <h3 class="cab-step-title" data-i18n="step1Title">Скачай и запусти</h3>
-              <p class="cab-step-desc" data-i18n="step1Desc">Загрузи SnowClient.exe и запусти от имени администратора. Лоадер сам докачает нужные компоненты.</p>
+              <p class="cab-step-desc" data-i18n="step1Desc">Загрузи SnowClient.exe и запусти от имени администратора. Нужные файлы подтянутся сами.</p>
             </div>
             <div class="cab-card cab-step-card glass spot">
               <div class="cab-step-num">02</div>
               <h3 class="cab-step-title" data-i18n="step2Title">Войди по логину и паролю</h3>
-              <p class="cab-step-desc" data-i18n="step2Desc">Введи логин и пароль от этого аккаунта. При первом входе твой HWID автоматически привяжется к профилю.</p>
+              <p class="cab-step-desc" data-i18n="step2Desc">Введи логин и пароль от этого аккаунта. При первом входе аккаунт привяжется к твоему ПК.</p>
             </div>
             <div class="cab-card cab-step-card glass spot">
               <div class="cab-step-num">03</div>
               <h3 class="cab-step-title" data-i18n="step3Title">Нажми «Играть»</h3>
-              <p class="cab-step-desc" data-i18n="step3Desc">Настрой выделение RAM и разрешение экрана в лаунчере и запускай Minecraft 1.21.11.</p>
+              <p class="cab-step-desc" data-i18n="step3Desc">Настрой выделение RAM и разрешение экрана в клиенте и запускай Minecraft 1.21.11.</p>
             </div>
           </div>
         </section>
@@ -330,10 +330,10 @@
       <span data-i18n="cabTabOverview">Обзор</span>
       
     </button>
-    <button class="cab-tabbar-btn" type="button" role="tab" data-tab="loader" aria-controls="panel-loader" aria-selected="false" tabindex="-1" onclick="switchCabTab('loader')">
+    <button class="cab-tabbar-btn" type="button" role="tab" data-tab="client" aria-controls="panel-client" aria-selected="false" tabindex="-1" onclick="switchCabTab('client')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span data-i18n="cabTabLoaderShort">Лоадер</span>
-      <i class="cab-tabbar-dot" data-badge="loader" hidden></i>
+      <span data-i18n="cabTabClientShort">Клиент</span>
+      <i class="cab-tabbar-dot" data-badge="client" hidden></i>
     </button>
     <button class="cab-tabbar-btn" type="button" role="tab" data-tab="keys" aria-controls="panel-keys" aria-selected="false" tabindex="-1" onclick="switchCabTab('keys')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
@@ -352,6 +352,6 @@
 <script src="config.js"></script>
 <script src="smoke-shader.js"></script>
 <script src="cabinet.js"></script>
-<script src="loader-auth.js"></script>
+<script src="client-auth.js"></script>
 </body>
 </html>

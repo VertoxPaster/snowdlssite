@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function bindPaymentLinks() {
-  ['cabBuyTopBtn', 'cabBuyLoaderBtn', 'cabBuyKeysBtn'].forEach(id => {
+  ['cabBuyTopBtn', 'cabBuyClientBtn', 'cabBuyKeysBtn'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.href = FUNPAY_URL;
   });
@@ -172,7 +172,7 @@ function renderProfile() {
   const hwid = (u.hwid || '').trim();
   const hwidState = document.getElementById('cabHwidState');
   const hwidDate = document.getElementById('cabHwidDate');
-  const bindNote = document.getElementById('loaderBindNote');
+  const bindNote = document.getElementById('clientBindNote');
 
   if (hwid) {
     const masked = hwid.length > 10 ? `${hwid.slice(0, 6)}...${hwid.slice(-4)}` : hwid;
@@ -191,9 +191,9 @@ function renderProfile() {
 
   updateNavBadges(hasSub);
 
-  // Блок скачивания лоадера
-  document.getElementById('loaderAllowedBox').hidden = !hasSub;
-  document.getElementById('loaderLockedBox').hidden = hasSub;
+  // Блок скачивания клиента
+  document.getElementById('clientAllowedBox').hidden = !hasSub;
+  document.getElementById('clientLockedBox').hidden = hasSub;
 }
 
 function renderAvatar(el, u) {
@@ -211,8 +211,8 @@ function renderAvatar(el, u) {
 }
 
 /* ── Навигация кабинета ── */
-const CAB_TABS = ['overview', 'loader', 'keys', 'settings'];
-const CAB_TAB_KEYS = { overview: 'cabTabOverview', loader: 'cabTabLoader', keys: 'cabTabKeys', settings: 'cabTabSettings' };
+const CAB_TABS = ['overview', 'client', 'keys', 'settings'];
+const CAB_TAB_KEYS = { overview: 'cabTabOverview', client: 'cabTabClient', keys: 'cabTabKeys', settings: 'cabTabSettings' };
 let cabTab = 'overview';
 
 function readTabFromUrl() {
@@ -300,7 +300,7 @@ function setupCabNav() {
 }
 
 function updateNavBadges(hasSub) {
-  document.querySelectorAll('[data-badge="loader"]').forEach(el => { el.hidden = hasSub; });
+  document.querySelectorAll('[data-badge="client"]').forEach(el => { el.hidden = hasSub; });
 }
 
 function fmtDate(iso) {
@@ -343,8 +343,8 @@ async function loadPurchases() {
   }
 }
 
-async function downloadLoader() {
-  const btn = document.getElementById('btnDownloadLoader');
+async function downloadClient() {
+  const btn = document.getElementById('btnDownloadClient');
   if (!btn || btn.classList.contains('loading')) return;
   btn.classList.add('loading');
 
@@ -352,7 +352,7 @@ async function downloadLoader() {
     const res = await api('/api/loader/download');
     if (res.url) {
       window.open(res.url, '_blank', 'noopener');
-      showToast(tt('loaderStarted'), 'success');
+      showToast(tt('clientStarted'), 'success');
       return;
     }
 
@@ -381,7 +381,7 @@ async function downloadLoader() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    showToast(tt('loaderStarted'), 'success');
+    showToast(tt('clientStarted'), 'success');
   } catch (err) {
     if (err.status === 401) return handleExpired();
     showToast(err.message, 'error');

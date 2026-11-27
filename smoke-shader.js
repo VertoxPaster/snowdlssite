@@ -1,13 +1,13 @@
 /* ============================================================
-   SNOWCLIENT — WEBGL DOMAIN-WARPED SMOKE SHADER
+   SNOWCLIENT — снегопад на WebGL
+   Слои снега с разной глубиной: дальние чёткие, ближние размыты (боке).
+   Фон плоский, без градиентов; поверх него карточки с backdrop-blur.
    ============================================================ */
 (function () {
   'use strict';
 
-  function initSmokeShader() {
-    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return;
-    }
+  function initSnow() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     let canvas = document.getElementById('smokeCanvas');
     if (!canvas) {
@@ -15,163 +15,107 @@
       canvas.id = 'smokeCanvas';
       canvas.className = 'smoke-canvas';
       canvas.setAttribute('aria-hidden', 'true');
-      const bgBase = document.querySelector('.bg-base');
-      if (bgBase && bgBase.parentNode) {
-        bgBase.parentNode.insertBefore(canvas, bgBase.nextSibling);
-      } else {
-        document.body.prepend(canvas);
-      }
+      document.body.prepend(canvas);
     }
 
     const gl = canvas.getContext('webgl', {
-      alpha: false,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      powerPreference: 'low-power'
+      alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'low-power'
     }) || canvas.getContext('experimental-webgl');
-
     if (!gl) return;
 
-    const vsSource = `
-      attribute vec2 a_pos;
-      void main() {
-        gl_Position = vec4(a_pos, 0.0, 1.0);
-      }
-    `;
+    const vs = 'attribute vec2 a_pos; void main(){ gl_Position = vec4(a_pos, 0.0, 1.0); }';
 
-    const fsSource = `
+    const fs = `
       precision highp float;
-
       uniform vec2 u_res;
       uniform float u_time;
       uniform vec2 u_mouse;
 
-      float hash(vec2 p) {
+      float h(vec2 p) {
         p = fract(p * vec2(123.34, 456.21));
         p += dot(p, p + 45.32);
         return fract(p.x * p.y);
       }
 
-      float noise(vec2 p) {
-        vec2 i = floor(p);
+      // один слой снега: scale — плотность, size — радиус, blur — размытие по глубине
+      float layer(vec2 uv, float t, float scale, float speed, float size, float blur, float seed, float density) {
+        vec2 p = uv * scale;
+        p.y += t * speed;
+        vec2 id = floor(p);
         vec2 f = fract(p);
-        vec2 u = f * f * (3.0 - 2.0 * f);
-
-        float a = hash(i);
-        float b = hash(i + vec2(1.0, 0.0));
-        float c = hash(i + vec2(0.0, 1.0));
-        float d = hash(i + vec2(1.0, 1.0));
-
-        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-      }
-
-      float fbm(vec2 p) {
-        float value = 0.0;
-        float amp = 0.5;
-        mat2 rot = mat2(0.80, -0.60, 0.60, 0.80);
-        for (int i = 0; i < 5; i++) {
-          value += amp * noise(p);
-          p = rot * p * 2.03 + vec2(1.7, 9.2);
-          amp *= 0.5;
-        }
-        return value;
+        float r = h(id + seed);
+        vec2 pos = vec2(0.22 + 0.56 * h(id + seed + 1.7), 0.22 + 0.56 * h(id + seed + 3.1));
+        pos.x += 0.14 * sin(t * (0.35 + r * 0.5) + r * 6.2831);
+        float d = length(f - pos);
+        float rad = size * (0.55 + 0.45 * h(id + seed + 5.3));
+        float a = 1.0 - smoothstep(rad * 0.25, rad + blur, d);
+        a *= step(1.0 - density, r);
+        // чем сильнее размыто, тем прозрачнее пятно
+        return a / (1.0 + blur * 9.0);
       }
 
       void main() {
-        vec2 uv = gl_FragCoord.xy / u_res.xy;
-        float aspect = u_res.x / max(u_res.y, 1.0);
-        vec2 p = vec2((uv.x - 0.5) * aspect, uv.y - 0.5) * 2.1;
+        vec2 uv = gl_FragCoord.xy / u_res.y;
+        vec2 m = (u_mouse - 0.5);
+        float t = u_time;
 
-        p += (u_mouse - 0.5) * 0.22;
+        float s = 0.0;
+        s += layer(uv + m * 0.010, t, 22.0, 0.30, 0.050, 0.010, 11.0, 0.55) * 0.55;
+        s += layer(uv + m * 0.020, t, 14.0, 0.42, 0.060, 0.018, 23.0, 0.55) * 0.75;
+        s += layer(uv + m * 0.035, t,  8.5, 0.60, 0.070, 0.050, 37.0, 0.50) * 0.95;
+        s += layer(uv + m * 0.060, t,  4.8, 0.85, 0.080, 0.160, 51.0, 0.45) * 1.10;
+        s += layer(uv + m * 0.100, t,  2.6, 1.15, 0.090, 0.320, 67.0, 0.40) * 1.20;
 
-        float t = u_time * 0.14;
+        vec3 bg = vec3(0.026, 0.032, 0.042);
+        vec3 snow = vec3(0.80, 0.89, 1.0);
+        vec3 col = bg + snow * clamp(s, 0.0, 1.0) * 0.55;
 
-        vec2 q = vec2(
-          fbm(p + vec2(0.0, 0.0) + t * 0.45),
-          fbm(p + vec2(5.2, 1.3) - t * 0.35)
-        );
+        // зерно, чтобы поверхность не выглядела пластиковой
+        col += (h(gl_FragCoord.xy + fract(t) * 91.0) - 0.5) * 0.028;
 
-        vec2 r = vec2(
-          fbm(p + 3.1 * q + vec2(1.7, 9.2) + t * 0.55),
-          fbm(p + 3.1 * q + vec2(8.3, 2.8) + t * 0.42)
-        );
-
-        float f = fbm(p + 2.4 * r);
-
-        vec3 colVoid    = vec3(0.012, 0.012, 0.013);
-        vec3 colDark    = vec3(0.036, 0.036, 0.040);
-        vec3 colMid     = vec3(0.075, 0.075, 0.082);
-        vec3 colAccent  = vec3(0.150, 0.150, 0.162);
-
-        float smokeMask = smoothstep(0.18, 0.88, f);
-        float wispMask  = smoothstep(0.45, 0.96, length(r) * 0.68);
-
-        vec3 color = mix(colVoid, colDark, smokeMask);
-        color = mix(color, colMid, smokeMask * wispMask * 0.85);
-        color += colAccent * pow(clamp(f * wispMask, 0.0, 1.0), 2.6) * 0.55;
-
-        // Лёгкая виньетка по краям экрана
-        float dist = length((uv - 0.5) * vec2(1.15, 1.05));
-        float vignette = smoothstep(0.95, 0.22, dist);
-        color *= mix(0.45, 1.0, vignette);
-
-        gl_FragColor = vec4(color, 1.0);
+        gl_FragColor = vec4(col, 1.0);
       }
     `;
 
-    function compile(type, source) {
-      const shader = gl.createShader(type);
-      gl.shaderSource(shader, source);
-      gl.compileShader(shader);
-      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-        gl.deleteShader(shader);
-        return null;
-      }
-      return shader;
+    function compile(type, src) {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) { gl.deleteShader(sh); return null; }
+      return sh;
     }
 
-    const vs = compile(gl.VERTEX_SHADER, vsSource);
-    const fs = compile(gl.FRAGMENT_SHADER, fsSource);
-    if (!vs || !fs) return;
+    const v = compile(gl.VERTEX_SHADER, vs);
+    const f = compile(gl.FRAGMENT_SHADER, fs);
+    if (!v || !f) return;
 
-    const program = gl.createProgram();
-    gl.attachShader(program, vs);
-    gl.attachShader(program, fs);
-    gl.linkProgram(program);
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return;
-
-    gl.useProgram(program);
+    const prog = gl.createProgram();
+    gl.attachShader(prog, v);
+    gl.attachShader(prog, f);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+    gl.useProgram(prog);
 
     const buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(
-      gl.ARRAY_BUFFER,
-      new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
-      gl.STATIC_DRAW
-    );
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'a_pos');
+    gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
-    const posLoc = gl.getAttribLocation(program, 'a_pos');
-    gl.enableVertexAttribArray(posLoc);
-    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+    const uRes = gl.getUniformLocation(prog, 'u_res');
+    const uTime = gl.getUniformLocation(prog, 'u_time');
+    const uMouse = gl.getUniformLocation(prog, 'u_mouse');
 
-    const uRes = gl.getUniformLocation(program, 'u_res');
-    const uTime = gl.getUniformLocation(program, 'u_time');
-    const uMouse = gl.getUniformLocation(program, 'u_mouse');
-
-    let mouseX = 0.5;
-    let mouseY = 0.5;
-    let targetX = 0.5;
-    let targetY = 0.5;
-
+    let mx = 0.5, my = 0.5, tx = 0.5, ty = 0.5;
     window.addEventListener('mousemove', function (e) {
-      targetX = e.clientX / Math.max(window.innerWidth, 1);
-      targetY = 1.0 - e.clientY / Math.max(window.innerHeight, 1);
+      tx = e.clientX / Math.max(window.innerWidth, 1);
+      ty = 1 - e.clientY / Math.max(window.innerHeight, 1);
     }, { passive: true });
 
     function resize() {
-      const isMobile = window.innerWidth < 768;
-      const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.0 : 1.25);
+      const mobile = window.innerWidth < 768;
+      const dpr = Math.min(window.devicePixelRatio || 1, mobile ? 1 : 1.25);
       const w = Math.floor(window.innerWidth * dpr);
       const h = Math.floor(window.innerHeight * dpr);
       if (canvas.width !== w || canvas.height !== h) {
@@ -180,47 +124,33 @@
         gl.viewport(0, 0, w, h);
       }
     }
-
     window.addEventListener('resize', resize, { passive: true });
     resize();
 
-    let rafId = null;
-    let startTime = performance.now();
-    let pausedAt = 0;
+    let raf = null, start = performance.now(), pausedAt = 0;
 
-    function render(now) {
-      mouseX += (targetX - mouseX) * 0.03;
-      mouseY += (targetY - mouseY) * 0.03;
-
-      const elapsed = ((now - startTime) * 0.001) % 3600.0;
-
+    function frame(now) {
+      mx += (tx - mx) * 0.04;
+      my += (ty - my) * 0.04;
       gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform1f(uTime, elapsed);
-      gl.uniform2f(uMouse, mouseX, mouseY);
-
+      gl.uniform1f(uTime, ((now - start) * 0.001) % 3600.0);
+      gl.uniform2f(uMouse, mx, my);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
-      rafId = requestAnimationFrame(render);
+      raf = requestAnimationFrame(frame);
     }
 
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) {
-        if (rafId) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
-          pausedAt = performance.now();
-        }
-      } else if (!rafId) {
-        if (pausedAt) startTime += performance.now() - pausedAt;
-        rafId = requestAnimationFrame(render);
+        if (raf) { cancelAnimationFrame(raf); raf = null; pausedAt = performance.now(); }
+      } else if (!raf) {
+        if (pausedAt) start += performance.now() - pausedAt;
+        raf = requestAnimationFrame(frame);
       }
     });
 
-    rafId = requestAnimationFrame(render);
+    raf = requestAnimationFrame(frame);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSmokeShader);
-  } else {
-    initSmokeShader();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initSnow);
+  else initSnow();
 })();

@@ -340,7 +340,7 @@ async function userDlg(u) {
       let payload = { id: subId, action: sAct };
 
       if (sAct === 'delete') {
-        if (!confirm('Удалить эту подписку у пользователя? Доступ к лоадеру сразу закроется (если нет других активных подписок).')) return;
+        if (!confirm('Удалить эту подписку у пользователя? Доступ к клиенту сразу закроется (если нет других активных подписок).')) return;
       } else if (sAct === 'lifetime') {
         if (!confirm('Сделать эту подписку бессрочной (Lifetime)?')) return;
       } else if (sAct === 'extend') {

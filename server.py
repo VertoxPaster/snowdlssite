@@ -533,7 +533,7 @@ def launcher_web_session(h, body, user):
     if u.get("_scope") == "loader":
         burned = _db1("DELETE FROM tokens WHERE token=? AND scope='loader' RETURNING token", (u["_token"],))
         if not burned:
-            return h.json_out({"status": "error", "message": "Токен лоадера уже использован"}, 401)
+            return h.json_out({"status": "error", "message": "Токен уже использован"}, 401)
 
     if not _bind_or_verify_hwid(u["id"], hwid):
         return h.json_out({"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"}, 403)
@@ -551,7 +551,7 @@ def loader_download(h, body, user):
     if not require(user):
         return h.json_out({"message": "Сначала войдите в аккаунт"}, 401)
     if not has_active_subscription(user):
-        return h.json_out({"message": "Для скачивания лоадера нужна активная подписка"}, 403)
+        return h.json_out({"message": "Для скачивания клиента нужна активная подписка"}, 403)
 
     ext_url = os.environ.get("LOADER_URL", "").strip()
     want_json = "application/json" in (h.headers.get("Accept") or "")
@@ -583,7 +583,7 @@ def loader_download(h, body, user):
         return
 
     return h.json_out({
-        "message": "Файл лоадера ещё не загружен на сервер (добавьте static/SnowClient.exe или LOADER_URL)"
+        "message": "Файл клиента ещё не загружен на сервер (добавьте static/SnowClient.exe или LOADER_URL)"
     }, 404)
 
 
@@ -1941,7 +1941,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     STATIC_OK = ("/static/", "/uploads/local/", "/assets/", "/fonts/")
     STATIC_FILES = (
     "/", "/index.html", "/admin.html", "/admin.js",
-    "/cabinet.html", "/cabinet.js", "/loader-auth.js", "/smoke-shader.js",
+    "/cabinet.html", "/cabinet.js", "/client-auth.js", "/smoke-shader.js",
     "/terms.html", "/rules.html", "/privacy.html",
     "/style.css", "/script.js", "/config.js",
     "/favicon.ico", "/manifest.json", "/robots.txt",
@@ -2038,7 +2038,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.json_out({"message": "Некорректный или слишком большой запрос"}, 413)
         user = get_user_by_token(self.bearer_token())
         if user and user.get("_scope") != "web" and (method, path) not in LOADER_ALLOWED:
-            return self.json_out({"message": "Токен лоадера не подходит для этого метода"}, 403)
+            return self.json_out({"message": "Токен не подходит для этого метода"}, 403)
         self._handle_api(method, path, body, user)
 
     def do_GET(self):
