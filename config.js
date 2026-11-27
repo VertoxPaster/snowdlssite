@@ -180,17 +180,31 @@ const CONFIG = {
   },
 
   // ─── СИСТЕМА ОПЛАТЫ ──────────────────────────────────────
- payment: {
-    funpayUrl: "https://funpay.com/users/9984257/",
-    useRedirect: true,
+// ─── СИСТЕМА ОПЛАТЫ ──────────────────────────────────────
+  payment: {
+    funpayUrl: "https://funpay.com/lots/offer?id=78533148",
+    useRedirect: false,
     redirectUrls: {
-      month:     "https://funpay.com/users/9984257/",
-      "3months": "https://funpay.com/users/9984257/",
-      "6months": "https://funpay.com/users/9984257/",
-      lifetime:  "https://funpay.com/users/9984257/"
+      month:     "https://funpay.com/lots/offer?id=78533148",
+      "3months": "https://funpay.com/lots/offer?id=78533148",
+      "6months": "https://funpay.com/lots/offer?id=78533148",
+      lifetime:  "https://funpay.com/lots/offer?id=78533148"
     },
+    methods: [
+      { id: "sbp",        name: "СБП",         badge: "RUB",   badgeColor: "#2563eb" },
+      { id: "mir",        name: "МИР",         badge: "RUB",   badgeColor: "#2563eb" },
+      { id: "visa_rub",   name: "VISA",        badge: "RUB",   badgeColor: "#2563eb" },
+      { id: "mc_rub",     name: "Mastercard",  badge: "RUB",   badgeColor: "#2563eb" },
+      { id: "yoomoney",   name: "ЮMoney",      badge: "RUB",   badgeColor: "#2563eb" },
+      { id: "cryptobot",  name: "Crypto Bot",  badge: "USDT",  badgeColor: "#16a34a" },
+      { id: "usdt_trc20", name: "USDT TRC20",  badge: "TRC20", badgeColor: "#dc2626" },
+      { id: "usdt_ton",   name: "USDT TON",    badge: "TON",   badgeColor: "#0284c7" },
+      { id: "btc",        name: "Bitcoin",     badge: "BTC",   badgeColor: "#16a34a" },
+      { id: "ltc",        name: "Litecoin",    badge: "LTC",   badgeColor: "#2563eb" },
+      { id: "eth",        name: "Ethereum",    badge: "ETH",   badgeColor: "#dc2626" }
+    ],
     usePopup: false,
-    popupContact: "t.me/Snowdls"
+    popupContact: "https://t.me/Snowdls"
   },
 
   // ─── ПЕРЕВОДЫ UI ─────────────────────────────────────────

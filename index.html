@@ -322,22 +322,60 @@
 </footer>
 
 <!-- ═════ MODALS ═════ -->
+<!-- ═════ PAYMENT MODAL ═════ -->
 <div class="modal-overlay" id="modalPayment" onclick="closeModalOutside(event,'modalPayment')">
-  <div class="modal">
-    <div class="modal-header">
-      <h3 id="paymentPopupTitle">Оформление покупки</h3>
-      <button class="modal-close" onclick="closeModal('payment')">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+  <div class="modal glass pay-modal">
+    <div class="pay-modal-head">
+      <h3>Выберите способ оплаты</h3>
+      <button class="modal-close" type="button" onclick="closeModal('payment')" aria-label="Закрыть">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
       </button>
     </div>
-    <div class="modal-body">
-      <div class="payment-popup-content">
-        <p id="paymentPopupBody">Чтобы оформить покупку, напиши нам:</p>
-        <a id="paymentPopupLink" href="#" target="_blank" rel="noopener" class="payment-popup-link">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 3.5L2.5 10.5l6.5 2 2 6.5 3-4 5.5 4z"/></svg>
-          Написать нам
+
+    <div class="pay-modal-grid">
+      <!-- Левая колонка: шлюзы -->
+      <div class="pay-methods-grid" id="payMethodsGrid"></div>
+
+      <!-- Правая колонка: тариф + кнопки -->
+      <div class="pay-summary">
+        <h4 class="pay-summary-title" id="paySummaryTitle">Покупка «SnowClient — 30 Дней»</h4>
+
+        <div class="pay-plans-tabs" id="payPlansTabs"></div>
+
+        <div class="pay-total-row">
+          <span>К оплате:</span>
+          <span>
+            <span class="pay-total-old" id="payTotalOld" hidden></span>
+            <span class="pay-total-price" id="payTotalPrice">180 ₽</span>
+          </span>
+        </div>
+
+        <div class="pay-promo-row">
+          <input type="text" id="payPromoInput" class="pay-promo-input" placeholder="Введите промокод (не обязательно)" autocomplete="off" />
+          <button type="button" class="btn btn-outline" style="height:40px;padding:0 14px;" onclick="applyPayPromo()">OK</button>
+        </div>
+
+        <button type="button" class="btn btn-primary pay-btn-continue" id="payContinueBtn" onclick="submitPayment()">
+          <span class="spinner"></span>
+          <span>Продолжить</span>
+        </button>
+
+        <a href="https://funpay.com/lots/offer?id=78533148" target="_blank" rel="noopener" class="pay-btn-funpay" id="payFunpayBtn">
+          <span>Купить через</span>
+          <span class="pay-funpay-badge">FUNPAY</span>
         </a>
+
+        <div class="pay-info-box">
+          <strong>Информация</strong>
+          <span class="pay-info-warn">Важно:</span> после прямой оплаты подписка активируется автоматически на ваш аккаунт. При покупке через FunPay полученный ключ активируется в личном кабинете.
+        </div>
       </div>
+    </div>
+
+    <div class="pay-modal-foot">
+      <button type="button" class="btn btn-outline" style="height:36px;padding:0 16px;" onclick="closeModal('payment')">Отмена</button>
     </div>
   </div>
 </div>

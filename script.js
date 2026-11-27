@@ -453,38 +453,169 @@ function buildPricing() {
 /* ════════════════════════════════════════
    ПОКУПКА — логика из config.js → payment
 ════════════════════════════════════════ */
-function handleBuy(planId, duration, price) {
-  const pay = CONFIG.payment;
-  if (pay.useRedirect) {
-    const url = pay.redirectUrls?.[planId] || pay.funpayUrl || 'https://funpay.com/lots/offer?id=78533148';
-    window.open(url, '_blank', 'noopener');
-    return;
-  }
-  if (pay.usePopup) {
-    showPaymentPopup(planId, duration, price);
-    return;
-  }
-  // Своя логика (Stripe, LiqPay и т.д.) — сюда
-  showToast(`${duration} — ${price}`, 'success');
+/* ════════════════════════════════════════
+   ПОКУПКА — МОДАЛЬНОЕ ОКНО ВЫБОРА ОПЛАТЫ
+════════════════════════════════════════ */
+let selectedPayPlanId   = 'month';
+let selectedPayMethodId = 'sbp';
+let payPromoDiscount    = 0;
+let payAppliedPromo     = '';
+
+const PAY_ICONS = {
+  sbp: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 4l7 4v8l-7 4V4z" fill="#5B57A2"/><path d="M12 8l7-4v8l-7 4V8z" fill="#D90751"/><path d="M5 12l7-4 7 4-7 4-7-4z" fill="#FAB718"/></svg>`,
+  mir: `<span style="font-weight:900;font-size:1rem;letter-spacing:.04em;color:#22c55e;">МИР</span>`,
+  visa_rub: `<span style="font-weight:900;font-style:italic;font-size:1.05rem;color:#eab308;">VISA</span>`,
+  mc_rub: `<svg width="32" height="20" viewBox="0 0 32 20"><circle cx="12" cy="10" r="8" fill="#eb001b"/><circle cx="20" cy="10" r="8" fill="#f79e1b" fill-opacity=".85"/></svg>`,
+  yoomoney: `<span style="font-weight:900;font-size:.92rem;color:#a855f7;">ЮMoney</span>`,
+  cryptobot: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="6" fill="#38bdf8"/><path d="M7 9l5 7 5-7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  usdt_trc20: `<span style="font-weight:900;font-size:.95rem;color:#26a17b;">₮ TRC20</span>`,
+  usdt_ton: `<span style="font-weight:900;font-size:.95rem;color:#38bdf8;">₮ TON</span>`,
+  btc: `<span style="font-weight:900;font-size:.95rem;color:#f59e0b;">₿ BTC</span>`,
+  ltc: `<span style="font-weight:900;font-size:.95rem;color:#94a3b8;">Ł LTC</span>`,
+  eth: `<span style="font-weight:900;font-size:.95rem;color:#818cf8;">Ξ ETH</span>`
+};
+
+function handleBuy(planId) {
+  openPaymentModal(planId || 'month');
 }
 
-function showPaymentPopup(planId, duration, price) {
-  const t = CONFIG.i18n[currentLang];
-  const link = CONFIG.payment.popupContact;
+function openPaymentModal(planId = 'month') {
+  const plans = CONFIG.pricing?.plans || [];
+  selectedPayPlanId = plans.some(p => p.id === planId) ? planId : (plans[0]?.id || 'month');
+  const methods = CONFIG.payment?.methods || [];
+  if (!methods.some(m => m.id === selectedPayMethodId)) {
+    selectedPayMethodId = methods[0]?.id || 'sbp';
+  }
+  payPromoDiscount = 0;
+  payAppliedPromo = '';
+  const promoInput = document.getElementById('payPromoInput');
+  if (promoInput) promoInput.value = '';
 
-  const overlay = document.getElementById('modalPayment');
-  const title   = document.getElementById('paymentPopupTitle');
-  const body    = document.getElementById('paymentPopupBody');
-  const linkEl  = document.getElementById('paymentPopupLink');
+  renderPaymentModal();
+  openModal('payment');
+}
 
-  if (!overlay) return;
+function selectPayMethod(methodId) {
+  selectedPayMethodId = methodId;
+  renderPaymentModal();
+}
 
-  if (title)  title.textContent = `${t.paymentPopupTitle} — ${duration} (${price})`;
-  if (body)   body.textContent  = t.paymentPopupText;
-  if (linkEl) linkEl.href = link;
+function selectPayPlan(planId) {
+  selectedPayPlanId = planId;
+  renderPaymentModal();
+}
 
-  overlay.classList.add('open');
-  document.body.style.overflow = 'hidden';
+function renderPaymentModal() {
+  const methodsGrid = document.getElementById('payMethodsGrid');
+  const plansTabs   = document.getElementById('payPlansTabs');
+  const titleEl     = document.getElementById('paySummaryTitle');
+  const priceEl     = document.getElementById('payTotalPrice');
+  const oldPriceEl  = document.getElementById('payTotalOld');
+  const funpayBtn   = document.getElementById('payFunpayBtn');
+  if (!methodsGrid || !plansTabs) return;
+
+  const methods = CONFIG.payment?.methods || [];
+  methodsGrid.innerHTML = methods.map(m => `
+    <button type="button" class="pay-method-card ${m.id === selectedPayMethodId ? 'active' : ''}" onclick="selectPayMethod('${m.id}')">
+      <span class="pay-method-badge" style="background:${m.badgeColor || '#2563eb'}">${esc(m.badge)}</span>
+      <span class="pay-method-ico">${PAY_ICONS[m.id] || '💳'}</span>
+      <span class="pay-method-name">${esc(m.name)}</span>
+    </button>
+  `).join('');
+
+  const plans = CONFIG.pricing?.plans || [];
+  const cur   = CONFIG.pricing?.currency || '₽';
+  plansTabs.innerHTML = plans.map(p => {
+    const dur = p.duration[currentLang] || p.duration.ru;
+    return `
+      <button type="button" class="pay-plan-tab ${p.id === selectedPayPlanId ? 'active' : ''}" onclick="selectPayPlan('${p.id}')">
+        ${esc(dur)}
+      </button>
+    `;
+  }).join('');
+
+  const plan = plans.find(p => p.id === selectedPayPlanId) || plans[0];
+  if (plan) {
+    const dur = plan.duration[currentLang] || plan.duration.ru;
+    const basePrice = Number(plan.price) || 0;
+    const finalPrice = payPromoDiscount > 0
+      ? Math.max(1, Math.round(basePrice * (1 - payPromoDiscount / 100)))
+      : basePrice;
+
+    if (titleEl) titleEl.textContent = `Покупка «${CONFIG.clientName} — ${dur}»`;
+    if (priceEl) priceEl.textContent = `${finalPrice} ${cur}`;
+    if (oldPriceEl) {
+      oldPriceEl.hidden = payPromoDiscount <= 0;
+      oldPriceEl.textContent = `${basePrice} ${cur}`;
+    }
+  }
+
+  if (funpayBtn) {
+    funpayBtn.href = CONFIG.payment?.redirectUrls?.[selectedPayPlanId]
+      || CONFIG.payment?.funpayUrl
+      || 'https://funpay.com/lots/offer?id=78533148';
+  }
+}
+
+async function applyPayPromo() {
+  const input = document.getElementById('payPromoInput');
+  const code = (input?.value || '').trim();
+  if (!code) {
+    payPromoDiscount = 0;
+    payAppliedPromo = '';
+    renderPaymentModal();
+    return;
+  }
+  try {
+    const r = await api('/api/orders/check-promo', { method: 'POST', body: { code, planId: selectedPayPlanId } });
+    if (r.valid && Number(r.discount) > 0) {
+      payPromoDiscount = Number(r.discount);
+      payAppliedPromo = code;
+      renderPaymentModal();
+      showToast(`Промокод применён: -${payPromoDiscount}%`, 'success');
+    } else {
+      payPromoDiscount = 0;
+      payAppliedPromo = '';
+      renderPaymentModal();
+      showToast('Промокод не найден или неактивен', 'error');
+    }
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function submitPayment() {
+  if (!currentUser) {
+    closeModal('payment');
+    openAuth('login');
+    showToast('Войдите в аккаунт для автоматической выдачи подписки', 'info');
+    return;
+  }
+  const btn = document.getElementById('payContinueBtn');
+  if (!btn || btn.classList.contains('loading')) return;
+
+  btn.classList.add('loading');
+  try {
+    const r = await api('/api/payments/create', {
+      method: 'POST',
+      body: {
+        planId: selectedPayPlanId,
+        method: selectedPayMethodId,
+        promoCode: payAppliedPromo
+      }
+    });
+    if (r.payUrl) {
+      location.href = r.payUrl;
+      return;
+    }
+    showToast(r.message || 'Счёт сформирован', 'success');
+    closeModal('payment');
+  } catch (err) {
+    if (err.status === 401) handleExpired();
+    showToast(err.message, 'error');
+  } finally {
+    btn.classList.remove('loading');
+  }
 }
 
 /* ════════════════════════════════════════

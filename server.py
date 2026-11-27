@@ -274,28 +274,28 @@ _cosmetics_cache = {"t": 0, "data": None}
 
 def fetch_products():
     return [
-        {"id": 1, "title": "SnowClient — 1 Месяц", "price": 299, "duration": 30},
-        {"id": 2, "title": "SnowClient — 3 Месяца", "price": 699, "duration": 90},
-        {"id": 3, "title": "SnowClient — 6 Месяцев", "price": 1199, "duration": 180},
-        {"id": 4, "title": "SnowClient — Lifetime", "price": 2499, "duration": None},
-        {"id": 5, "title": "Сброс HWID", "price": 149, "duration": None, "type": "hwid_reset"},
+        {"id": 1, "slug": "month",    "title": "SnowClient — 30 Дней",   "price": 180, "duration": 30},
+        {"id": 2, "slug": "3months",  "title": "SnowClient — 3 Месяца",  "price": 340, "duration": 90},
+        {"id": 3, "slug": "6months",  "title": "SnowClient — 6 Месяцев", "price": 570, "duration": 180},
+        {"id": 4, "slug": "lifetime", "title": "SnowClient — Навсегда",  "price": 800, "duration": None},
+        {"id": 5, "slug": "hwid",     "title": "Сброс HWID",             "price": 149, "duration": None, "type": "hwid_reset"},
     ]
 
 
-def fetch_cosmetics():
-    return []
-
-
 def find_product(pid):
+    if isinstance(pid, str):
+        s = pid.strip().lower()
+        for p in fetch_products():
+            if p.get("slug") == s:
+                return p
     try:
-        pid = int(pid or 0)
+        num_id = int(pid or 0)
     except (TypeError, ValueError):
         return None
     for p in fetch_products():
-        if int(p.get("id") or 0) == pid:
+        if int(p.get("id") or 0) == num_id:
             return p
     return None
-
 
 def find_cosmetic(cid):
     try:
@@ -1177,26 +1177,30 @@ def creator_packs(h, body, user):
 @route("POST", "/api/payments/create")
 def payments_create(h, body, user):
     if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    if not require_admin(user):
-        return h.json_out({"message": "Оплата осуществляется через FunPay."}, 400)
-    if "amount" in body:
-        try:
-            amt = float(body.get("amount") or 0)
-        except (TypeError, ValueError):
-            amt = 0
-        if amt <= 0:
-            return h.json_out({"message": "Некорректная сумма"}, 400)
-        add_balance(user["id"], amt, deposit=True)
-        b, _, _ = get_balance(user["id"])
-        return h.json_out({"success": True, "message": "Баланс пополнен", "balance": b, "data": {"balance": b}})
-    pid = body.get("productId")
+        return h.json_out({"message": "Сначала войдите в аккаунт"}, 401)
+
+    pid = body.get("planId") or body.get("productId")
+    method = str(body.get("method") or "sbp").strip()[:32]
     prod = find_product(pid)
     if not prod:
-        return h.json_out({"message": "Товар не найден"}, 400)
-    grant_product(user["id"], prod, "pay")
-    return h.json_out({"success": True, "message": "Товар успешно приобретен", "data": {"status": "paid"}})
+        return h.json_out({"message": "Тариф не найден"}, 400)
 
+    amount = float(prod.get("price") or 0)
+    order_id = "SNW-" + secrets.token_hex(6).upper()
+
+    # Сюда подставляется генерация ссылки на оплату выбранного агрегатора (AAIO / FreeKassa / AnyPay)
+    # Например: pay_url = build_aaio_url(order_id, amount, method, user["id"], prod["id"])
+    pay_url = os.environ.get("PAYMENT_GATEWAY_URL", "").strip()
+    if not pay_url:
+        return h.json_out({
+            "message": "Прямой шлюз ещё подключается. Используйте кнопку «Купить через FunPay» ниже"
+        }, 400)
+
+    return h.json_out({
+        "success": True,
+        "orderId": order_id,
+        "payUrl": pay_url,
+    })
 
 @proute("GET", r"^/api/payments/")
 def payments_status(h, mo, body, user):

@@ -82,7 +82,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 function bindPaymentLinks() {
   ['cabBuyTopBtn', 'cabBuyClientBtn', 'cabBuyKeysBtn'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.href = FUNPAY_URL;
+    if (!el) return;
+    el.removeAttribute('target');
+    el.href = '#buy';
+    el.addEventListener('click', e => {
+      e.preventDefault();
+      openPaymentModal('month');
+    });
   });
 }
 
