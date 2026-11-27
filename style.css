@@ -2036,61 +2036,55 @@ section { position: relative; z-index: 2; padding: 110px 0; }
 }
 
 /* ============================================================
-   v9 — плоский дизайн: снегопад-шейдер + стеклянные панели с блюром.
-   Без градиентов, свечений, 3D-наклонов и пустых зон.
+   v10 — полностью тёмный, нейтральный. Дым на фоне, стекло с блюром,
+   motion: посимвольный заголовок, появление с блюром, шторка у заголовков,
+   заливка кнопок, параллакс героя, прячущаяся шапка.
+   Без градиентов, без бегущей строки.
    ============================================================ */
 :root {
-  --bg-card:       rgba(11, 14, 19, 0.58);
-  --bg-card-hover: rgba(16, 20, 27, 0.68);
-  --border:        rgba(255, 255, 255, 0.08);
-  --border-light:  rgba(255, 255, 255, 0.14);
-  --blur:          blur(16px) saturate(110%);
-  --blur-heavy:    blur(22px) saturate(110%);
+  --bg:            #040405;
+  --bg-card:       rgba(8, 8, 9, 0.62);
+  --bg-card-hover: rgba(15, 15, 17, 0.74);
+  --border:        rgba(255, 255, 255, 0.07);
+  --border-light:  rgba(255, 255, 255, 0.18);
+  --blur:          blur(18px) saturate(100%);
+  --blur-heavy:    blur(26px) saturate(100%);
 }
 
-/* фон: только шейдер, всё остальное убрано */
-.bg-base { background: #06080b; }
+/* ── фон: чёрный + дым от шейдера ── */
+.bg-base { background: #040405; }
 .bg-base::after { display: none; }
-.smoke-canvas { opacity: 1; mix-blend-mode: normal; }
-.bg-grid, .cursor-glow, .aurora, .scroll-hint, .float-chip { display: none !important; }
-.spot::after { display: none; }
+.smoke-canvas { opacity: 0.95; mix-blend-mode: screen; }
+.bg-grid, .cursor-glow, .aurora, .scroll-hint, .float-chip,
+.marquee, .footer-mark, .spot::after { display: none !important; }
 .hero-video-placeholder, .video-embed-placeholder { background: none; }
-.marquee { mask-image: none; -webkit-mask-image: none; padding: 12px 0; }
-.footer-mark { display: none; }
 
-/* без наклонов, магнитов и парения */
+/* ── без наклонов и теней ── */
 .tilt, .magnetic { transform: none !important; }
-.hero-float { animation: none; }
-.feature-card.visible.tilting:hover,
-.pricing-card.visible.tilting:hover { transform: translateY(-3px) !important; }
+.hero-float { animation: none; will-change: transform; }
 .feature-card, .pricing-card { transform-style: flat; }
-
-/* поверхности: плоские, спокойные */
 .nav-pill, .feature-card, .pricing-card, .support-card, .glass, .modal,
 .cab-card, .cab-stat, .hero-video-frame, .video-embed-wrap, .lang-dropdown,
-.mobile-menu, .toast { box-shadow: none; }
-.pricing-card.popular,
-.pricing-card.popular.visible:hover { background: var(--bg-card-hover); border-color: rgba(255, 255, 255, 0.28); }
-.navbar.scrolled .nav-pill { box-shadow: none; }
+.mobile-menu, .toast, .navbar.scrolled .nav-pill,
 .btn-primary, .btn-primary:hover, .nav-buy { box-shadow: none; }
 
 .nav-pill, .feature-card, .pricing-card, .support-card, .glass, .cab-card,
 .cab-stat, .cab-hero, .cab-sidebar, .hero-video-frame, .video-embed-wrap,
-.legal-card, .modal { border-radius: 12px; }
-.btn, .nav-buy, .lang-btn, .nav-auth, .chip, .field input { border-radius: 8px; }
-.chip { border-radius: 6px; }
+.legal-card, .modal { border-radius: 10px; }
+.btn, .nav-buy, .lang-btn, .nav-auth, .chip, .field input { border-radius: 6px; }
+.chip { border-radius: 4px; }
 
-/* меньше пустоты */
+/* ── плотная вёрстка, без пустот ── */
 section { padding: 72px 0; }
 .section-header { margin-bottom: 32px; }
-.hero { min-height: 0; padding: 120px 0 64px; }
+.hero { min-height: 0; padding: 120px 0 56px; }
 .hero-inner { gap: 40px; }
-.hero h1 { font-size: clamp(3rem, 6.4vw, 5.2rem); letter-spacing: -2.5px; margin-bottom: 14px; }
+.hero h1 { font-size: clamp(3.2rem, 7vw, 5.8rem); letter-spacing: -3px; margin-bottom: 14px; }
 .hero-desc { margin-bottom: 24px; }
 .hero-actions { margin-bottom: 20px; }
-.feature-card { min-height: 0; padding: 24px; }
+.feature-card { min-height: 0; padding: 26px 24px 28px; }
 .feature-icon-wrap { margin-bottom: 14px; }
-.pricing-card { padding: 24px 22px; }
+.pricing-card { padding: 26px 22px; }
 .support-card { padding: 24px 20px; }
 .footer { padding-top: 40px; }
 .footer-inner { margin-bottom: 28px; }
@@ -2098,15 +2092,125 @@ section { padding: 72px 0; }
 .cab-card { padding: 20px 22px; }
 .legal-page { min-height: 0; padding: 88px 20px 48px; }
 .legal-card { padding: 28px 32px; }
-.legal-text .legal-meta { margin-bottom: 10px; }
 
 @media (min-width: 1025px) {
   .features-grid { grid-template-columns: repeat(3, 1fr); }
-  .feature-card,
-  .feature-card:nth-child(n) { grid-column: span 1; }
+  .feature-card, .feature-card:nth-child(n) { grid-column: span 1; }
 }
+
+/* ============================================================
+   MOTION
+   ============================================================ */
+@keyframes charIn {
+  from { transform: translateY(108%) rotate(7deg); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(26px); filter: blur(8px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(48px) scale(0.97); filter: blur(10px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes lineGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* заголовок героя: буквы выезжают из-под маски */
+.char {
+  display: inline-block;
+  transform-origin: 0 100%;
+  animation: charIn 0.95s var(--spring) both;
+  animation-delay: calc(var(--i, 0) * 55ms + 0.15s);
+}
+.anim-up, .anim-up-3, .anim-up-4, .anim-up-5 { animation: riseIn 0.95s var(--spring) both; }
+.anim-up   { animation-delay: 0.05s; }
+.anim-up-3 { animation-delay: 0.75s; }
+.anim-up-4 { animation-delay: 0.9s; }
+.anim-up-5 { animation-delay: 1.05s; }
+.anim-right { animation: slideIn 1.1s var(--spring) 0.5s both; }
+
+/* появление блоков при скролле: подъём + снятие блюра */
+.reveal {
+  opacity: 0;
+  transform: translateY(48px) scale(0.985);
+  filter: blur(10px);
+  transition:
+    opacity 0.9s var(--spring),
+    transform 1s var(--spring),
+    filter 0.9s var(--spring),
+    border-color var(--transition), background var(--transition);
+}
+.reveal.visible { opacity: 1; transform: none; filter: none; }
+
+/* заголовки секций: шторка слева направо */
+.reveal .section-title { clip-path: inset(-12% 100% -12% 0); }
+.reveal.visible .section-title {
+  clip-path: inset(-12% -2% -12% 0);
+  transition: clip-path 1.2s var(--spring) 0.2s;
+}
+.section-eyebrow { position: relative; }
+.reveal .section-eyebrow::after {
+  content: ""; display: block; height: 1px; width: 56px; margin-top: 10px;
+  background: var(--border-light); transform-origin: 0 50%; transform: scaleX(0);
+}
+.reveal.visible .section-eyebrow::after { animation: lineGrow 0.9s var(--spring) 0.35s both; }
+
+/* разделители прорисовываются */
+.divider { transform-origin: 0 50%; }
+
+/* карточки: подъём, линия снизу, поворот иконки */
+.feature-card, .pricing-card, .support-card {
+  background-image: linear-gradient(var(--primary-light), var(--primary-light));
+  background-repeat: no-repeat;
+  background-size: 0% 2px;
+  background-position: 0 100%;
+}
+.feature-card.visible, .pricing-card.visible, .support-card.visible {
+  transition:
+    opacity 0.9s var(--spring), transform 0.5s var(--spring), filter 0.9s var(--spring),
+    border-color var(--transition), background-color var(--transition), background-size 0.7s var(--spring);
+}
+.feature-card.visible:hover, .pricing-card.visible:hover, .support-card.visible:hover {
+  transform: translateY(-8px) !important;
+  background-size: 100% 2px;
+  border-color: var(--border-light);
+}
+.feature-icon-wrap { transition: transform 0.7s var(--spring); }
+.feature-card:hover .feature-icon-wrap { transform: rotate(-8deg) scale(1.08); }
+.feature-num { transition: transform 0.6s var(--spring), opacity 0.4s; }
+.feature-card:hover .feature-num { transform: translateX(6px); }
+
+/* кнопки: заливка снизу */
+.btn-outline { overflow: hidden; isolation: isolate; }
+.btn-outline::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: var(--primary-light);
+  transform: translateY(102%);
+  transition: transform 0.5s var(--spring);
+}
+.btn-outline:hover::before { transform: none; }
+.btn-outline:hover { color: var(--on-primary); border-color: var(--primary-light); }
+.btn-primary { transition: transform 0.4s var(--spring), background var(--transition-fast), color var(--transition-fast); }
+.btn-primary:hover { transform: translateY(-3px); }
+
+/* шапка прячется при прокрутке вниз */
+.navbar { transition: transform 0.6s var(--spring); }
+.navbar.nav-hide { transform: translateY(-140%); }
+
+/* список покупок и пункты прайса: каскад */
+.cab-purchase { animation: riseIn 0.8s var(--spring) both; animation-delay: var(--st, 0ms); }
+.pricing-features li { transition: transform 0.4s var(--spring); }
+.pricing-card:hover .pricing-features li { transform: translateX(4px); }
+
 @media (max-width: 640px) {
   section { padding: 48px 0; }
   .hero { padding-top: 100px; }
   .legal-card { padding: 20px 16px; }
+  .reveal { filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .char, .anim-up, .anim-up-3, .anim-up-4, .anim-up-5, .anim-right, .cab-purchase { animation: none; }
+  .reveal { opacity: 1; transform: none; filter: none; }
+  .reveal .section-title { clip-path: none; }
+  .navbar.nav-hide { transform: none; }
 }

@@ -9,18 +9,18 @@
 <title>SnowClient — Панель управления</title>
 <style>
 :root{
-  --primary:#38BDF8;
-  --primary-2:#0284C7;
-  --glow:rgba(56,189,248,.18);
-  --pl:#BAE6FD;
-  --bg:#060913;
-  --bg2:#0A0F1E;
-  --card:rgba(13,19,36,.82);
-  --hover:rgba(56,189,248,.08);
+  --primary:#E6E7EA;
+  --primary-2:#B4B7BF;
+  --glow:rgba(255,255,255,.12);
+  --pl:#FFFFFF;
+  --bg:#040405;
+  --bg2:#0A0A0B;
+  --card:rgba(10,10,11,.82);
+  --hover:rgba(255,255,255,.06);
   --text:#F1F5F9;
-  --mut:#8A99B5;
-  --bd:rgba(148,163,184,.12);
-  --bd2:rgba(56,189,248,.28);
+  --mut:#8B8B93;
+  --bd:rgba(255,255,255,.08);
+  --bd2:rgba(255,255,255,.22);
   --ok:#34D399;
   --warn:#FBBF24;
   --bad:#F87171;
@@ -28,10 +28,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{
-  background:
-    radial-gradient(900px 500px at 10% -10%, rgba(56,189,248,.12), transparent 60%),
-    radial-gradient(700px 450px at 95% 5%, rgba(14,165,233,.09), transparent 55%),
-    var(--bg);
+  background:var(--bg);
   color:var(--text);
   font:14px/1.55 var(--font);
   min-height:100vh;
@@ -39,12 +36,12 @@ body{
 ::-webkit-scrollbar{width:7px;height:7px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(148,163,184,.2);border-radius:99px}
-::-webkit-scrollbar-thumb:hover{background:rgba(56,189,248,.4)}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.4)}
 
 a{color:var(--pl);text-decoration:none}a:hover{text-decoration:underline}
 button,input,select{font:inherit;color:inherit;transition:all .16s ease}
 input,select{
-  background:rgba(6,9,19,.75);
+  background:rgba(5,5,6,.75);
   border:1px solid var(--bd);
   border-radius:10px;
   padding:9px 12px;
@@ -56,20 +53,20 @@ input[type=checkbox]{width:15px;height:15px;accent-color:var(--primary);cursor:p
 input[readonly]{opacity:.65;cursor:default}
 
 button{
-  background:linear-gradient(135deg,var(--primary),var(--primary-2));
-  color:#04101E;
+  background:var(--primary);
+  color:#0A0A0B;
   border:0;
   border-radius:10px;
   padding:9px 15px;
   cursor:pointer;
   font-weight:600;
-  box-shadow:0 4px 14px rgba(2,132,199,.25);
+  box-shadow:none;
 }
 button:hover{filter:brightness(1.08);transform:translateY(-1px)}
 button:active{transform:translateY(0)}
 button:disabled{opacity:.42;cursor:not-allowed;filter:none;transform:none;box-shadow:none}
 button.g{
-  background:rgba(15,23,42,.65);
+  background:rgba(20,20,22,.65);
   color:var(--text);
   border:1px solid var(--bd);
   box-shadow:none;
@@ -114,14 +111,13 @@ nav{
   display:flex;
   flex-direction:column;
   gap:5px;
-  background:rgba(9,13,26,.85);
+  background:rgba(8,8,9,.85);
   backdrop-filter:blur(16px);
 }
 .brand{
   display:flex;align-items:center;gap:10px;
   padding:6px 10px 4px;font-size:17px;font-weight:800;letter-spacing:-.02em;
-  background:linear-gradient(90deg,#FFF,var(--pl));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  color:#fff;
 }
 nav .me{
   padding:2px 10px 14px;margin-bottom:6px;
@@ -135,9 +131,9 @@ nav button{
 }
 nav button:hover{background:var(--hover);color:var(--text);transform:none}
 nav button.on{
-  background:linear-gradient(90deg,rgba(56,189,248,.16),rgba(56,189,248,.04));
+  background:rgba(255,255,255,.08);
   color:var(--pl);font-weight:600;
-  border:1px solid rgba(56,189,248,.25);
+  border:1px solid rgba(255,255,255,.25);
 }
 nav .spacer{flex:1}
 nav #ses{padding:10px;font-size:11px;color:var(--mut);background:rgba(0,0,0,.25);border-radius:10px;margin-bottom:4px}
@@ -149,10 +145,6 @@ main{padding:28px 32px;overflow:auto;min-width:0;max-width:1440px}
   border:1px solid var(--bd);border-radius:14px;padding:18px;
   position:relative;overflow:hidden;
 }
-.stat::after{
-  content:'';position:absolute;inset:0 0 auto 0;height:2px;
-  background:linear-gradient(90deg,transparent,var(--primary),transparent);opacity:.45;
-}
 .stat b{display:block;font-size:25px;font-weight:700;margin:4px 0 2px;letter-spacing:-.02em}
 
 .tw{
@@ -161,7 +153,7 @@ main{padding:28px 32px;overflow:auto;min-width:0;max-width:1440px}
 }
 table{width:100%;border-collapse:collapse}
 th,td{padding:11px 14px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
-th{color:var(--mut);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;background:rgba(6,9,19,.45)}
+th{color:var(--mut);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;background:rgba(5,5,6,.45)}
 td.wrap{white-space:normal;min-width:240px;word-break:break-word}
 th.sort{cursor:pointer;user-select:none}th.sort:hover{color:var(--pl)}
 tbody tr:hover td,tr:hover>td{background:var(--hover)}
@@ -175,20 +167,20 @@ tr:last-child td{border:0}
 .tag{
   display:inline-flex;align-items:center;gap:4px;
   padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600;
-  border:1px solid var(--bd);background:rgba(15,23,42,.6);
+  border:1px solid var(--bd);background:rgba(20,20,22,.6);
 }
-.tag.admin{color:var(--pl);border-color:rgba(56,189,248,.4);background:rgba(56,189,248,.12)}
+.tag.admin{color:var(--pl);border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.12)}
 .tag.ban{color:var(--bad);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.1)}
 .tag.ok{color:var(--ok);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.1)}
 .tag.warn{color:var(--warn);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1)}
 
 dialog{
-  background:#0B1120;color:var(--text);
+  background:#0A0A0B;color:var(--text);
   border:1px solid var(--bd2);border-radius:18px;
   padding:24px;width:min(620px,95vw);max-height:92vh;overflow:auto;margin:auto;
   box-shadow:0 24px 64px rgba(0,0,0,.75);
 }
-dialog::backdrop{background:rgba(2,6,23,.78);backdrop-filter:blur(6px)}
+dialog::backdrop{background:rgba(0,0,0,.8);backdrop-filter:blur(6px)}
 dialog form,.stack{display:grid;gap:12px}
 .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:130px}
 label{font-size:12px;color:var(--mut);display:grid;gap:5px}
@@ -196,7 +188,7 @@ label.chk{display:flex;gap:8px;align-items:center;cursor:pointer}
 hr{border:0;border-top:1px solid var(--bd);margin:4px 0}
 
 .sub-card{
-  background:rgba(6,9,19,.65);border:1px solid var(--bd);border-radius:12px;
+  background:rgba(5,5,6,.65);border:1px solid var(--bd);border-radius:12px;
   padding:12px 14px;display:grid;gap:8px;
 }
 .sub-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
@@ -205,14 +197,14 @@ hr{border:0;border-top:1px solid var(--bd);margin:4px 0}
 
 code,.mono{
   font-family:ui-monospace,Consolas,monospace;
-  background:rgba(6,9,19,.85);border:1px solid var(--bd);border-radius:8px;
+  background:rgba(5,5,6,.85);border:1px solid var(--bd);border-radius:8px;
   padding:3px 7px;word-break:break-all;font-size:12.5px;
 }
 div.mono{padding:12px;line-height:1.9;max-height:220px;overflow:auto}
 
 #toast{position:fixed;right:18px;bottom:18px;display:grid;gap:8px;z-index:99;max-width:min(420px,92vw)}
 #toast div{
-  background:#0F172A;border:1px solid var(--bd2);padding:11px 15px;border-radius:12px;
+  background:#101012;border:1px solid var(--bd2);padding:11px 15px;border-radius:12px;
   box-shadow:0 10px 25px rgba(0,0,0,.5);font-weight:500;
 }
 #toast .e{border-color:var(--bad);color:#FECACA}

@@ -14,11 +14,11 @@ const TOUCH   = window.matchMedia('(hover: none)').matches;
 document.addEventListener('DOMContentLoaded', () => {
   applyColors();
   splitTitle();
-  setupMarquee();
   buildLangDropdown();
   setLanguage(currentLang);
   populateContact();
   setupNavScroll();
+  setupScrollMotion();
   setupReveal();
   setupCursorGlow();
   setupSmoothLinks();
@@ -87,14 +87,6 @@ function splitTitle() {
       `<span class="char" style="--i:${idx++}">${ch}</span>`
     ).join('');
   });
-}
-
-/* ════════════════════════════════════════
-   MARQUEE — дублируем содержимое для бесшовной ленты
-════════════════════════════════════════ */
-function setupMarquee() {
-  const track = document.getElementById('marqueeTrack');
-  if (track) track.innerHTML += track.innerHTML;
 }
 
 /* ════════════════════════════════════════
@@ -1010,4 +1002,33 @@ function showToast(msg, type = 'success') {
 
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
+}
+
+/* ════════════════════════════════════════
+   SCROLL MOTION — параллакс героя, прячущаяся шапка
+════════════════════════════════════════ */
+function setupScrollMotion() {
+  if (REDUCED) return;
+  const nav   = document.getElementById('navbar');
+  const left  = document.querySelector('.hero-left');
+  const float = document.querySelector('.hero-float');
+  let lastY = window.scrollY, ticking = false;
+
+  const update = () => {
+    const y = window.scrollY;
+    const k = Math.min(y, 900);
+    if (left)  { left.style.transform  = `translate3d(0, ${(k * 0.14).toFixed(1)}px, 0)`; left.style.opacity = String(Math.max(0, 1 - k / 650)); }
+    if (float) { float.style.transform = `translate3d(0, ${(k * 0.28).toFixed(1)}px, 0)`; }
+    if (nav) {
+      const down = y > lastY + 4, up = y < lastY - 4;
+      if (y > 320 && down) nav.classList.add('nav-hide');
+      else if (up || y <= 320) nav.classList.remove('nav-hide');
+    }
+    lastY = y;
+    ticking = false;
+  };
+  window.addEventListener('scroll', () => {
+    if (!ticking) { requestAnimationFrame(update); ticking = true; }
+  }, { passive: true });
+  update();
 }
