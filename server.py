@@ -20,6 +20,7 @@ import traceback
 import time
 import urllib.request
 import urllib.parse
+import urllib.error
 from urllib.parse import urlsplit, unquote
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -1149,9 +1150,13 @@ def crypto_call(method, params=None, post=False):
     elif params:
         url += "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(url, data=data, headers={
-        "Crypto-Pay-API-Token": CRYPTO_TOKEN, "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=10) as r:
-        j = json.loads(r.read().decode())
+        "Crypto-Pay-API-Token": CRYPTO_TOKEN, "Content-Type": "application/json",
+        "Accept": "application/json", "User-Agent": "Mozilla/5.0 (SnowClient/1.0)"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            j = json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError("cryptobot HTTP %s: %s" % (e.code, e.read()[:300].decode("utf-8", "replace")))
     if not j.get("ok"):
         raise RuntimeError("cryptobot: %s" % j.get("error"))
     return j["result"]
