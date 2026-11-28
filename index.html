@@ -53,13 +53,12 @@
         <div class="lang-dropdown" id="langDropdown"></div>
       </div>
 
-      <button class="nav-auth magnetic" id="navAuth" type="button" onclick="onAuthClick()">
+<button class="nav-auth magnetic" id="navAuth" type="button" onclick="onAuthClick()">
         <span class="nav-auth-avatar" id="navAuthAvatar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </span>
         <span class="nav-auth-text">
           <span class="nav-auth-name" id="navAuthName" data-i18n="navLogin">Войти</span>
-          <span class="nav-auth-bal" id="navAuthBal" hidden></span>
         </span>
       </button>
 
@@ -380,53 +379,103 @@
   </div>
 </div>
 
-<!-- ═════ AUTH MODAL ═════ -->
+<!-- ═════ AUTH MODAL (ZENITH SPLIT STYLE) ═════ -->
 <div class="modal-overlay" id="modalAuth" onclick="closeModalOutside(event,'modalAuth')">
-  <div class="modal glass auth-modal">
-    <div class="modal-header">
-      <div class="auth-tabs" id="authTabs" role="tablist">
-        <span class="auth-tab-indicator" id="authIndicator"></span>
-        <button class="auth-tab active" id="tabLogin" role="tab" type="button" onclick="switchAuthTab('login')" data-i18n="authLogin">Вход</button>
-        <button class="auth-tab" id="tabRegister" role="tab" type="button" onclick="switchAuthTab('register')" data-i18n="authRegister">Регистрация</button>
+  <div class="modal glass auth-modal-zenith">
+    <button class="modal-close auth-z-close" type="button" onclick="closeModal('auth')" aria-label="Close">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+
+    <div class="auth-z-grid">
+      <!-- Левая колонка: форма -->
+      <div class="auth-z-left">
+        <div class="auth-z-brand">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
+            <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
+          </svg>
+        </div>
+
+        <h3 class="auth-z-title" id="authZTitle">С возвращением</h3>
+        <p class="auth-z-sub" id="authSub" data-i18n="authSubLogin">Войдите, чтобы продолжить.</p>
+
+        <div class="auth-z-note" id="authZRegNote" hidden>
+          Хочешь просто купить? Регистрация не нужна — оплати напрямую, аккаунт создадим сами.
+          <a href="#pricing" onclick="closeModal('auth')">К тарифам →</a>
+        </div>
+
+        <form class="auth-form auth-z-form" id="authForm" onsubmit="submitAuth(event)" novalidate>
+          <div class="z-input-group field-register" id="fieldUsername">
+            <label for="authUsername" data-i18n="authUsername">Имя пользователя</label>
+            <div class="z-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <input type="text" id="authUsername" autocomplete="username" maxlength="20" placeholder="Введите никнейм" />
+            </div>
+          </div>
+
+          <div class="z-input-group" id="fieldIdent">
+            <label for="authIdent" id="authIdentLabel" data-i18n="authIdent">Имя пользователя или Email</label>
+            <div class="z-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <input type="text" id="authIdent" autocomplete="username" placeholder="Введите никнейм или Email" />
+            </div>
+          </div>
+
+          <div class="z-input-group">
+            <label for="authPassword" id="authPasswordLabel" data-i18n="authPassword">Пароль</label>
+            <div class="z-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+              <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+            </div>
+          </div>
+
+          <label class="auth-agree field-register" id="fieldAgree">
+            <input type="checkbox" id="authAgree" />
+            <span><span data-i18n="authAgreePre">Я принимаю</span> <a href="/terms" target="_blank" rel="noopener" data-i18n="footerTerms">Условия использования</a></span>
+          </label>
+
+          <div class="auth-error" id="authError" role="alert"></div>
+
+          <button class="btn btn-primary auth-z-submit" id="authSubmit" type="submit">
+            <span class="spinner"></span>
+            <span id="authSubmitLabel" data-i18n="authSubmitLogin">Войти</span>
+          </button>
+
+          <div class="auth-z-switch">
+            <span id="authZSwitchText">Нет аккаунта?</span>
+            <button type="button" id="authZSwitchBtn" onclick="toggleZenithAuthMode()">Зарегистрироваться</button>
+          </div>
+        </form>
       </div>
-      <button class="modal-close" type="button" onclick="closeModal('auth')" aria-label="Close">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <p class="auth-sub" id="authSub" data-i18n="authSubLogin">С возвращением.</p>
 
-      <form class="auth-form" id="authForm" onsubmit="submitAuth(event)" novalidate>
-        <label class="field field-register" id="fieldUsername">
-          <input type="text" id="authUsername" autocomplete="username" maxlength="20" placeholder=" " />
-          <span data-i18n="authUsername">Никнейм</span>
-        </label>
-        <label class="field" id="fieldIdent">
-          <input type="text" id="authIdent" autocomplete="username" placeholder=" " />
-          <span id="authIdentLabel" data-i18n="authIdent">Email или ник</span>
-        </label>
-        <label class="field">
-          <input type="password" id="authPassword" autocomplete="current-password" placeholder=" " />
-          <span id="authPasswordLabel" data-i18n="authPassword">Пароль</span>
-        </label>
-
-        <label class="auth-agree field-register" id="fieldAgree">
-          <input type="checkbox" id="authAgree" />
-          <span><span data-i18n="authAgreePre">Я принимаю</span> <a href="/terms" target="_blank" rel="noopener" data-i18n="footerTerms">Пользовательское соглашение</a></span>
-        </label>
-
-        <div class="auth-error" id="authError" role="alert"></div>
-
-        <button class="btn btn-primary auth-submit" id="authSubmit" type="submit">
-          <span class="spinner"></span>
-          <span id="authSubmitLabel" data-i18n="authSubmitLogin">Войти</span>
-        </button>
-      </form>
+      <!-- Правая колонка: стеклянная 3D-иконка входа -->
+      <div class="auth-z-right" aria-hidden="true">
+        <div class="auth-z-glass-portal">
+          <svg viewBox="0 0 160 220" fill="none">
+            <defs>
+              <linearGradient id="glassStroke" x1="0" y1="0" x2="160" y2="220" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+                <stop offset="35%" stop-color="#9CA3AF" stop-opacity="0.35"/>
+                <stop offset="70%" stop-color="#FFFFFF" stop-opacity="0.8"/>
+                <stop offset="100%" stop-color="#6B7280" stop-opacity="0.25"/>
+              </linearGradient>
+              <linearGradient id="glassFill" x1="20" y1="10" x2="140" y2="210" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.12"/>
+                <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.02"/>
+                <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.08"/>
+              </linearGradient>
+            </defs>
+            <rect x="44" y="14" width="102" height="192" rx="28" fill="url(#glassFill)" stroke="url(#glassStroke)" stroke-width="5"/>
+            <rect x="52" y="22" width="86" height="176" rx="21" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1.5"/>
+            <path d="M12 110H104M104 110L74 80M104 110L74 140" stroke="url(#glassStroke)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ═════ CABINET MODAL ═════ -->
+<!-- ═════ CABINET MODAL (БЕЗ БАЛАНСА) ═════ -->
 <div class="modal-overlay" id="modalCabinet" onclick="closeModalOutside(event,'modalCabinet')">
   <div class="modal glass cabinet-modal">
     <div class="modal-header">
@@ -436,7 +485,6 @@
       </button>
     </div>
     <div class="modal-body">
-
       <div class="cab-user">
         <div class="cab-avatar" id="cabAvatar">?</div>
         <div class="cab-user-info">
@@ -444,13 +492,6 @@
           <div class="cab-email" id="cabEmail"></div>
         </div>
         <span class="cab-role" id="cabRole">user</span>
-      </div>
-
-      <div class="cab-stats">
-        <div class="cab-stat spot">
-          <div class="cab-stat-label" data-i18n="cabBalance">Баланс</div>
-          <div class="cab-stat-value" id="cabBalance">0.00</div>
-        </div>
       </div>
 
       <div class="cab-section">
@@ -461,7 +502,7 @@
       <div class="cab-section">
         <h4 data-i18n="cabKey">Активация ключа</h4>
         <form class="cab-key" onsubmit="activateKey(event)">
-          <input type="text" id="cabKeyInput" class="cab-key-input" autocomplete="off" spellcheck="false" data-ph="cabKeyPh" placeholder="XXXX-XXXX-XXXX" />
+          <input type="text" id="cabKeyInput" class="cab-key-input" autocomplete="off" spellcheck="false" data-ph="cabKeyPh" placeholder="SNW-XXXX-XXXX-XXXX" />
           <button class="btn btn-primary" id="cabKeyBtn" type="submit"><span class="spinner"></span><span data-i18n="cabActivate">Активировать</span></button>
         </form>
       </div>
@@ -480,5 +521,18 @@
 <script src="smoke-shader.js"></script>
 <script src="script.js"></script>
 <script src="client-auth.js"></script>
+<script>
+  let _zMode = 'login';
+  function toggleZenithAuthMode() {
+    _zMode = _zMode === 'login' ? 'register' : 'login';
+    if (typeof switchAuthTab === 'function') switchAuthTab(_zMode);
+    const isReg = _zMode === 'register';
+    document.getElementById('authZTitle').textContent = isReg ? 'Создать аккаунт' : 'С возвращением';
+    document.getElementById('authSub').textContent = isReg ? 'Присоединяйтесь к сообществу SnowClient.' : 'Войдите, чтобы продолжить.';
+    document.getElementById('authZRegNote').hidden = !isReg;
+    document.getElementById('authZSwitchText').textContent = isReg ? 'Уже есть аккаунт?' : 'Нет аккаунта?';
+    document.getElementById('authZSwitchBtn').textContent = isReg ? 'Войти' : 'Зарегистрироваться';
+  }
+</script>
 </body>
 </html>
