@@ -1024,28 +1024,47 @@ const AP_TEXTS = {
 };
 function apt(k) { return (AP_TEXTS[currentLang] || AP_TEXTS.ru)[k]; }
 
-/* Cloudflare Turnstile: публичный ключ в config.js (CONFIG.turnstile.siteKey).
-   Секретный ключ на фронт НЕ кладём — он нужен только серверу для проверки токена. */
 let tsWidget = null, tsToken = '';
-function tsRequired() { return typeof CONFIG !== 'undefined' && !!(CONFIG.turnstile && CONFIG.turnstile.siteKey); }
+function tsRequired() {
+  return typeof CONFIG !== 'undefined' && !!(CONFIG.turnstile && CONFIG.turnstile.siteKey);
+}
 function updateSubmitState() {
   const b = document.getElementById('authSubmit');
   if (b) b.disabled = tsRequired() && !tsToken;
 }
 function initTurnstile() {
-  if (!tsRequired()) { updateSubmitState(); return; }
-  if (window.turnstile) { renderTurnstile(); return; }
-  if (document.getElementById('tsScript')) return;
-  const sc = document.createElement('script');
-  sc.id = 'tsScript'; sc.async = true; sc.defer = true;
-  sc.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-  sc.onload = renderTurnstile;
-  document.head.appendChild(sc);
+  if (!tsRequired()) {
+    tsToken = '';
+    updateSubmitState();
+    return;
+  }
+  const box = document.getElementById('tsBox');
+  if (!box) return;
+
+  if (window.turnstile) {
+    renderTurnstile();
+    updateSubmitState();
+    return;
+  }
+  if (!document.getElementById('tsScript')) {
+    const sc = document.createElement('script');
+    sc.id = 'tsScript';
+    sc.async = true;
+    sc.defer = true;
+    sc.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad';
+    document.head.appendChild(sc);
+  }
   updateSubmitState();
 }
+window.onTurnstileLoad = function () {
+  renderTurnstile();
+  updateSubmitState();
+};
 function renderTurnstile() {
-  if (tsWidget !== null || !window.turnstile) return;
-  const box = document.getElementById('tsBox'); if (!box) return;
+  const box = document.getElementById('tsBox');
+  if (!box || !window.turnstile || !tsRequired()) return;
+  tsToken = '';
+  box.innerHTML = '';
   tsWidget = turnstile.render(box, {
     sitekey: CONFIG.turnstile.siteKey,
     theme: 'dark',
@@ -1058,7 +1077,11 @@ function renderTurnstile() {
 }
 function resetTurnstile() {
   tsToken = '';
-  if (window.turnstile && tsWidget !== null) { try { turnstile.reset(tsWidget); } catch {} }
+  if (window.turnstile && tsWidget !== null) {
+    try { turnstile.reset(tsWidget); } catch { renderTurnstile(); }
+  } else if (window.turnstile) {
+    renderTurnstile();
+  }
   updateSubmitState();
 }
 
@@ -1086,11 +1109,20 @@ function onAuthClick() {
 
 /* ── Модалка входа / регистрации ── */
 function openAuth(tab = 'login') {
+  const alreadyOpen = isModalOpen('auth');
   openModal('auth');
   switchAuthTab(tab, true);
   clearAuthError();
   if (location.hash !== '#' + tab) history.pushState(null, '', location.pathname + location.search + '#' + tab);
-  initTurnstile();
+
+  if (!window.turnstile) {
+    initTurnstile();
+  } else if (tsWidget !== null || alreadyOpen) {
+    resetTurnstile();
+  } else {
+    initTurnstile();
+  }
+
   setTimeout(() => document.getElementById(authTab === 'register' ? 'authUsername' : 'authIdent')?.focus(), 350);
 }
 

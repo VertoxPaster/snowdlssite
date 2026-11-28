@@ -603,7 +603,30 @@ def loader_download(h, body, user):
         "message": "Файл клиента ещё не загружен на сервер (добавьте static/SnowClient.exe или LOADER_URL)"
     }, 404)
 
+TURNSTILE_SECRET = os.environ.get("TURNSTILE_SECRET", "").strip()
 
+
+def verify_turnstile(token: str, ip: str | None = None) -> bool:
+    if not TURNSTILE_SECRET:
+        return True
+    if not token or len(token) > 2048:
+        return False
+    fields = {"secret": TURNSTILE_SECRET, "response": token}
+    if ip:
+        fields["remoteip"] = ip
+    data = urllib.parse.urlencode(fields).encode("utf-8")
+    try:
+        req = urllib.request.Request(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+            return payload.get("success") is True
+    except Exception:
+        traceback.print_exc()
+        return False
 # ---------------------------------------------------------------- AUTH & SITE API
 
 @route("POST", "/api/auth/register")
@@ -611,6 +634,9 @@ def auth_register(h, body, user):
     username = str(body.get("username") or "").strip()
     email = str(body.get("email") or "").strip().lower()
     password = str(body.get("password") or "")
+ts_token = str(body.get("turnstileToken") or body.get("cf-turnstile-response") or "").strip()
+    if not verify_turnstile(ts_token, h.client_ip()):
+        return h.json_out({"message": "Проверка капчи не пройдена"}, 400)
     if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", username):
         return h.json_out({"message": "Ник: 3-20 символов (латиница, цифры, _)"}, 400)
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
@@ -650,6 +676,10 @@ def auth_register(h, body, user):
 def auth_login(h, body, user):
     password = str(body.get("password") or "")
     ident = str(body.get("email") or "").strip()
+# Внутри auth_login (в самом начале, после чтения password/ident):
+    ts_token = str(body.get("turnstileToken") or body.get("cf-turnstile-response") or "").strip()
+    if not verify_turnstile(ts_token, h.client_ip()):
+        return h.json_out({"message": "Проверка капчи не пройдена"}, 400)
     if len(password) > MAX_PW or len(ident) > 254:
         return h.json_out({"message": "Неверный email или пароль"}, 401)
     u = _db1("SELECT * FROM users WHERE lower(email)=lower(?) OR lower(username)=lower(?)", (ident, ident))
@@ -2075,8 +2105,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if clean_path in ("/admin", "/admin/", "/admin.html"):
             self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
         elif not self.path.startswith("/api/"):
-            # inline onclick/onerror в разметке пока требуют 'unsafe-inline' для скриптов
-            self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://www.youtube.com; connect-src 'self' http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+            self.send_header(
+                "Content-Security-Policy",
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com data:; "
+                "img-src 'self' data: https:; "
+                "frame-src https://www.youtube-nocookie.com https://www.youtube.com https://challenges.cloudflare.com; "
+                "connect-src 'self' http://127.0.0.1:* https://challenges.cloudflare.com; "
+                "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+            )
         super().end_headers()
 
     def bearer_token(self):
