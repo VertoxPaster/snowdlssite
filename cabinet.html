@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <style>
-    .bg-base{background:#040405!important}
+    .bg-base{background:#08080a!important}
     .bg-base::after{display:none}
     .cab-snow{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
   </style>
@@ -402,27 +402,46 @@
 
 <script src="config.js"></script>
 <script>
-(function(){
-  const c=document.getElementById('cabSnow'); if(!c) return;
-  const x=c.getContext('2d'); let W,H,D,fl=[],raf;
-  const calm=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  function size(){D=Math.min(devicePixelRatio||1,2);W=c.width=innerWidth*D;H=c.height=innerHeight*D;
-    const n=Math.round(Math.min(160,innerWidth/9));
-    while(fl.length<n)fl.push(mk(true)); fl.length=n;}
-  function mk(init){const r=Math.random();return{x:Math.random()*W,y:init?Math.random()*H:-10*D,
-    r:(r*r*2.2+.6)*D,v:(.25+r*.9)*D,a:.25+r*.6,p:Math.random()*6.28,s:.4+Math.random()*.8}}
-  function tick(t){
-    x.clearRect(0,0,W,H);
-    for(const f of fl){
-      f.y+=f.v; f.x+=Math.sin(t/1800*f.s+f.p)*.35*D;
-      if(f.y>H+10){Object.assign(f,mk(false));f.x=Math.random()*W}
-      x.globalAlpha=f.a; x.beginPath(); x.arc(f.x,f.y,f.r,0,6.283); x.fillStyle='#fff'; x.fill();
-    }
-    raf=requestAnimationFrame(tick);
+/* Мелкий снег — тот же, что на главной (static/snow.js), только без привязки к .top-bg */
+(function () {
+  var canvas = document.getElementById('cabSnow');
+  if (!canvas) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { canvas.style.display = 'none'; return; }
+  var ctx = canvas.getContext('2d');
+  var W = 0, H = 0, dpr = 1, flakes = [];
+  function make(initial) {
+    var r = 0.5 + Math.random() * 1.4;
+    return { x: Math.random() * W, y: initial ? Math.random() * H : -4, r: r,
+      vy: 14 + r * 14 + Math.random() * 10, sw: 6 + Math.random() * 14,
+      sp: 0.4 + Math.random() * 0.9, ph: Math.random() * 6.28, a: 0.25 + Math.random() * 0.55 };
   }
-  addEventListener('resize',size); size();
-  if(calm){tick(0);cancelAnimationFrame(raf)} else raf=requestAnimationFrame(tick);
-  document.addEventListener('visibilitychange',()=>{cancelAnimationFrame(raf);if(!document.hidden&&!calm)raf=requestAnimationFrame(tick)});
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var n = Math.round(Math.min(160, Math.max(60, W * H / 11000)));
+    flakes = []; for (var i = 0; i < n; i++) flakes.push(make(true));
+  }
+  addEventListener('resize', resize); resize();
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    for (var i = 0; i < flakes.length; i++) {
+      var f = flakes[i];
+      f.y += f.vy * dt; f.ph += f.sp * dt;
+      var x = f.x + Math.sin(f.ph) * f.sw;
+      if (f.y > H + 4) { flakes[i] = make(false); continue; }
+      ctx.globalAlpha = f.a;
+      ctx.beginPath(); ctx.arc(x, f.y, f.r, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(frame);
+  }
+  document.addEventListener('visibilitychange', function () { last = performance.now(); });
+  requestAnimationFrame(frame);
 })();
 </script>
 <script src="cabinet.js"></script>
