@@ -902,6 +902,23 @@ function handleExpired() {
 }
 
 /* ── Кнопка в шапке ── */
+/* аватар по умолчанию: static/ava.png, если свой не загружен (или не открылся) */
+const DEFAULT_AVATAR = '/static/ava.png';
+function fillAvatar(el, avatar, uname) {
+  if (!el) return;
+  const custom = avatar && /^\/uploads\/local\/[\w.-]+$/.test(String(avatar));
+  const img = document.createElement('img');
+  img.alt = '';
+  let fell = false;
+  img.addEventListener('error', () => {
+    if (custom && !fell) { fell = true; img.src = DEFAULT_AVATAR; }
+    else { img.remove(); el.textContent = uname.charAt(0); }
+  });
+  img.src = custom ? avatar : DEFAULT_AVATAR;
+  el.textContent = '';
+  el.append(img);
+}
+
 function renderAuthUI() {
   const btn   = document.getElementById('navAuth');
   const name  = document.getElementById('navAuthName');
@@ -915,15 +932,7 @@ function renderAuthUI() {
     btn.classList.add('logged');
     name.removeAttribute('data-i18n');
     name.textContent = uname;
-    av.textContent = uname.charAt(0);
-    if (currentUser.avatar && /^\/uploads\/local\/[\w.-]+$/.test(String(currentUser.avatar))) {
-      const img = document.createElement('img');
-      img.alt = '';
-      img.addEventListener('error', () => { av.textContent = uname.charAt(0); });
-      img.src = currentUser.avatar;
-      av.textContent = '';
-      av.append(img);
-    }
+    fillAvatar(av, currentUser.avatar, uname);
     bal.hidden = userBalance === null;
     if (userBalance !== null) bal.textContent = fmtMoney(userBalance);
     if (mob) { mob.removeAttribute('data-i18n'); mob.textContent = `${uname}${userBalance !== null ? ' · ' + fmtMoney(userBalance) : ''}`; }
@@ -1259,10 +1268,7 @@ function renderCabinet() {
   if (!u) return;
   const uname = u.username || '?';
   const av = document.getElementById('cabAvatar');
-  if (av) {
-    if (u.avatar) { av.textContent = uname.charAt(0); if (/^\/uploads\/local\/[\w.-]+$/.test(String(u.avatar))) { const img = document.createElement('img'); img.alt = ''; img.addEventListener('error', () => { av.textContent = uname.charAt(0); }); img.src = u.avatar; av.textContent = ''; av.append(img); } }
-    else av.textContent = uname.charAt(0);
-  }
+  fillAvatar(av, u.avatar, uname);
   document.getElementById('cabName').textContent  = u.display_name || uname;
   document.getElementById('cabEmail').textContent = u.email || '';
   const role = document.getElementById('cabRole');

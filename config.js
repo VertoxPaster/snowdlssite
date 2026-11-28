@@ -42,11 +42,11 @@ const CONFIG = {
   // ─── НАВИГАЦИЯ ───────────────────────────────────────────
   nav: {
     links: {
-      ru: ["Главная", "Функции", "Видеообзор", "Купить", "Поддержка"],
-      en: ["Home",    "Features", "Video",      "Buy",   "Support"],
-      uk: ["Головна", "Функції",  "Відео",      "Купити","Підтримка"],
-      pl: ["Główna",  "Funkcje",  "Wideo",      "Kup",   "Wsparcie"],
-      tr: ["Ana",     "Özellikler","Video",     "Satın Al","Destek"]
+      ru: ["Главная", "Документы", "Видеообзор", "Купить", "Поддержка"],
+      en: ["Home",    "Documents", "Video",      "Buy",   "Support"],
+      uk: ["Головна", "Документи", "Відео",      "Купити","Підтримка"],
+      pl: ["Główna",  "Dokumenty", "Wideo",      "Kup",   "Wsparcie"],
+      tr: ["Ana",     "Belgeler","Video",     "Satın Al","Destek"]
     },
     anchors: ["#hero", "#features", "#video", "#pricing", "#support"]
   },
@@ -142,9 +142,9 @@ const CONFIG = {
         }
       },
       {
-        id: "3months",
-        duration: { ru:"3 Месяца",  en:"3 Months",  uk:"3 Місяці",  pl:"3 Miesiące", tr:"3 Ay"     },
-        price:    340,
+        id: "lifetime",
+        duration: { ru:"Навсегда",  en:"Lifetime",  uk:"Назавжди",  pl:"Na zawsze",  tr:"Ömür boyu" },
+        price:    800,
         popular:  true,
         features: {
           ru: ["Все функции","Обновления","Поддержка"],
@@ -166,19 +166,6 @@ const CONFIG = {
           pl: ["Wszystkie funkcje","Aktualizacje","Wsparcie"],
           tr: ["Tüm özellikler","Güncellemeler","Destek"]
         }
-      },
-      {
-        id: "lifetime",
-        duration: { ru:"Навсегда",  en:"Lifetime",  uk:"Назавжди",  pl:"Na zawsze",  tr:"Ömür boyu" },
-        price:    800,
-        popular:  false,
-        features: {
-          ru: ["Все функции","Обновления","Поддержка"],
-          en: ["All features","Updates","Support"],
-          uk: ["Усі функції","Оновлення","Підтримка"],
-          pl: ["Wszystkie funkcje","Aktualizacje","Wsparcie"],
-          tr: ["Tüm özellikler","Güncellemeler","Destek"]
-        }
       }
     ]
   },
@@ -190,7 +177,6 @@ const CONFIG = {
     useRedirect: false,
     redirectUrls: {
       month:     "https://funpay.com/lots/offer?id=78533148",
-      "3months": "https://funpay.com/lots/offer?id=78533148",
       "6months": "https://funpay.com/lots/offer?id=78533148",
       lifetime:  "https://funpay.com/lots/offer?id=78533148"
     },

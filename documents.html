@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Документы — SnowClient</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .bg-base{background:#08080a!important}.bg-base::after{display:none}
+    .cab-snow{position:fixed;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+    .doc-page{position:relative;z-index:2;padding:130px 0 70px;min-height:100vh}
+    .doc-wrap{max-width:1160px;margin:0 auto;padding:0 32px}
+    .doc-title{font-size:2.1rem;font-weight:700;letter-spacing:-.02em;color:#f1f1f3;margin:0}
+    .doc-sub{color:#8a8a93;margin:6px 0 24px;font-size:.98rem}
+    .doc-layout{display:grid;grid-template-columns:276px 1fr;gap:24px;align-items:start}
+    .doc-side,.doc-main{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:20px}
+    .doc-side{padding:16px;position:sticky;top:100px}
+    .doc-tab{display:flex;align-items:center;gap:12px;width:100%;height:46px;padding:0 14px;margin-bottom:8px;border:0;border-radius:12px;
+      background:rgba(255,255,255,.04);color:#a2a2ab;font:600 .9rem Inter,sans-serif;cursor:pointer;text-align:left;transition:background .2s,color .2s}
+    .doc-tab svg{width:18px;height:18px;flex:none}
+    .doc-tab:hover{color:#e6e7ea}
+    .doc-tab.active{background:rgba(47,124,246,.14);color:#6aa7ff}
+    .doc-help{margin-top:14px;padding-top:16px;border-top:1px solid rgba(255,255,255,.07)}
+    .doc-help b{display:flex;align-items:center;gap:10px;font-size:.88rem;color:#d4d4da;margin-bottom:12px;font-weight:600}
+    .doc-help b svg{width:16px;height:16px;color:#6aa7ff}
+    .doc-help a{display:flex;align-items:center;justify-content:center;height:44px;border-radius:12px;background:rgba(47,124,246,.14);
+      color:#6aa7ff;font-weight:600;font-size:.88rem;text-decoration:none;transition:background .2s}
+    .doc-help a:hover{background:rgba(47,124,246,.24)}
+    .doc-main{padding:30px 26px 34px}
+    .doc-head{display:flex;gap:18px;align-items:flex-start;padding-bottom:22px;border-bottom:1px solid rgba(255,255,255,.07)}
+    .doc-head svg{width:38px;height:38px;color:#4d92ff;flex:none;margin-top:4px}
+    .doc-head h2{margin:0;font-size:1.9rem;font-weight:700;letter-spacing:-.02em;color:#f1f1f3}
+    .doc-head p{margin:8px 0 0;color:#8a8a93;line-height:1.6;font-size:.95rem;max-width:760px}
+    .doc-head small{display:block;margin-top:10px;color:#6d6d75;font-size:.78rem}
+    .doc-sec{padding-top:26px}
+    .doc-sec h3{margin:0 0 12px;font-size:1.1rem;font-weight:600;color:#ececf0}
+    .doc-sec p{margin:0 0 12px;color:#9a9aa3;font-size:.92rem;line-height:1.75}
+    .doc-pane{display:none}.doc-pane.active{display:block}
+    @media(max-width:860px){.doc-layout{grid-template-columns:1fr}.doc-side{position:static}.doc-page{padding-top:110px}}
+  </style>
+</head>
+<body class="ready">
+
+<div class="bg-base"></div>
+<canvas class="cab-snow" id="cabSnow" aria-hidden="true"></canvas>
+
+<nav class="navbar scrolled" id="navbar">
+  <div class="nav-pill nav-pill-zenith">
+    <ul class="nav-center">
+      <li><a href="/#pricing">Тарифы</a></li>
+      <li><a href="/documents" style="color:#fff">Документы</a></li>
+    </ul>
+    <a class="nav-brand" href="/">SnowClient</a>
+    <div class="nav-right">
+      <a class="nav-buy nav-buy-pill" href="/cabinet" style="text-decoration:none">Кабинет</a>
+    </div>
+  </div>
+</nav>
+
+<main class="doc-page">
+  <div class="doc-wrap">
+    <h1 class="doc-title">Документы</h1>
+    <p class="doc-sub">Условия и правила использования сервиса.</p>
+
+    <div class="doc-layout">
+      <aside class="doc-side" aria-label="Документы">
+        <button class="doc-tab active" type="button" data-doc="privacy">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6z"/></svg>
+          Политика конфиденциальности
+        </button>
+        <button class="doc-tab" type="button" data-doc="terms">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
+          Пользовательское соглашение
+        </button>
+        <div class="doc-help">
+          <b><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Нужна помощь?</b>
+          <a href="https://t.me/Snowdls" target="_blank" rel="noopener">Написать в поддержку</a>
+        </div>
+      </aside>
+
+      <section class="doc-main">
+        <!-- ПОЛИТИКА КОНФИДЕНЦИАЛЬНОСТИ -->
+        <article class="doc-pane active" id="doc-privacy">
+          <div class="doc-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6z"/></svg>
+            <div>
+              <h2>Политика конфиденциальности</h2>
+              <p>Как обрабатываются данные аккаунта, покупок и обращений в поддержку, когда вы пользуетесь сайтом и программой SnowClient.</p>
+              <small>Обновлено: 28.11.2026</small>
+            </div>
+          </div>
+          <div class="doc-sec"><h3>01. Кто отвечает за данные</h3>
+            <p>Политика действует для сайта SnowClient, аккаунтов, созданных на нём, программного обеспечения, которое выдаётся через сайт, подписок и связанной поддержки (вместе — «Сервис»).</p>
+            <p>Вопросы о персональных данных и запросы по вашим правам можно отправить в поддержку: <a href="https://t.me/Snowdls" target="_blank" rel="noopener" style="color:#6aa7ff">t.me/Snowdls</a>.</p></div>
+          <div class="doc-sec"><h3>02. Какие данные мы обрабатываем</h3>
+            <p>Данные аккаунта: имя пользователя, адрес электронной почты, хэш пароля, аватар, если вы его загрузили.</p>
+            <p>Данные о покупках: выбранный тариф, срок подписки, активированные ключи, статус оплаты. Данные банковских карт мы не получаем и не храним.</p>
+            <p>Технические данные: могут включать IP-адрес, сведения о браузере и устройстве, необходимые для входа в аккаунт, защиты от злоупотреблений и работы лицензии.</p></div>
+          <div class="doc-sec"><h3>03. Для чего используются данные</h3>
+            <p>Для создания и защиты аккаунта, выдачи доступа к подписке и загрузчику, обработки платежей, ответов в поддержке и предотвращения мошенничества и обхода лицензии.</p></div>
+          <div class="doc-sec"><h3>04. Хранение и передача</h3>
+            <p>Данные хранятся столько, сколько нужно для работы аккаунта и выполнения требований закона. Мы не продаём персональные данные. Передача третьим лицам возможна только платёжным и технически необходимым сервисам в объёме, нужном для работы Сервиса.</p></div>
+          <div class="doc-sec"><h3>05. Ваши права</h3>
+            <p>Вы можете запросить доступ к своим данным, их исправление или удаление, написав в поддержку. Удаление аккаунта может сделать недоступной оплаченную подписку.</p></div>
+        </article>
+
+        <!-- ПОЛЬЗОВАТЕЛЬСКОЕ СОГЛАШЕНИЕ -->
+        <article class="doc-pane" id="doc-terms">
+          <div class="doc-head">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
+            <div>
+              <h2>Пользовательское соглашение</h2>
+              <p>Правила использования сайта, аккаунта и программы SnowClient. Регистрируясь, вы подтверждаете, что прочитали и принимаете эти условия.</p>
+              <small>Обновлено: 28.11.2026</small>
+            </div>
+          </div>
+          <div class="doc-sec"><h3>01. Предмет соглашения</h3>
+            <p>SnowClient — программное обеспечение для Minecraft, предоставляемое по подписке или бессрочно. Покупка даёт личное, непередаваемое право использовать программу в соответствии с этим соглашением.</p></div>
+          <div class="doc-sec"><h3>02. Аккаунт</h3>
+            <p>Вы отвечаете за сохранность данных для входа и за действия, совершённые с вашего аккаунта. Передавать аккаунт или ключи третьим лицам нельзя.</p></div>
+          <div class="doc-sec"><h3>03. Оплата и доступ</h3>
+            <p>Доступ предоставляется на срок выбранного тарифа. Тариф «Навсегда» действует, пока существует программа и поддерживается Сервис. Вопросы по оплате и возвратам уточняйте в поддержке до покупки.</p></div>
+          <div class="doc-sec"><h3>04. Использование на свой риск</h3>
+            <p>Игровые серверы устанавливают собственные правила, и их администрация может ограничить доступ на сервер. Вы используете программу на свой риск и сами отвечаете за последствия на сторонних серверах.</p></div>
+          <div class="doc-sec"><h3>05. Запрещено</h3>
+            <p>Перепродавать доступ и ключи, распространять программу, взламывать, декомпилировать и обходить защиту лицензии, мешать работе сайта и других пользователей. При нарушении доступ может быть закрыт без возврата оплаты.</p></div>
+          <div class="doc-sec"><h3>06. Изменения</h3>
+            <p>Мы можем обновлять это соглашение. Актуальная версия всегда опубликована на этой странице, продолжая пользоваться Сервисом, вы принимаете изменения.</p></div>
+        </article>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+  var tabs=document.querySelectorAll('.doc-tab'),panes=document.querySelectorAll('.doc-pane');
+  function show(id){
+    if(id!=='privacy'&&id!=='terms')id='privacy';
+    tabs.forEach(function(t){t.classList.toggle('active',t.dataset.doc===id)});
+    panes.forEach(function(p){p.classList.toggle('active',p.id==='doc-'+id)});
+  }
+  tabs.forEach(function(t){t.addEventListener('click',function(){show(t.dataset.doc);history.replaceState(null,'','#'+t.dataset.doc)})});
+  show(location.hash.slice(1));
+})();
+</script>
+<script>
+/* Мелкий снег — тот же, что на главной */
+(function () {
+  var canvas = document.getElementById('cabSnow'); if (!canvas) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { canvas.style.display = 'none'; return; }
+  var ctx = canvas.getContext('2d'), W = 0, H = 0, dpr = 1, flakes = [];
+  function make(initial) {
+    var r = 0.5 + Math.random() * 1.4;
+    return { x: Math.random() * W, y: initial ? Math.random() * H : -4, r: r, vy: 14 + r * 14 + Math.random() * 10,
+      sw: 6 + Math.random() * 14, sp: 0.4 + Math.random() * 0.9, ph: Math.random() * 6.28, a: 0.25 + Math.random() * 0.55 };
+  }
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2); W = innerWidth; H = innerHeight;
+    canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var n = Math.round(Math.min(160, Math.max(60, W * H / 11000))); flakes = [];
+    for (var i = 0; i < n; i++) flakes.push(make(true));
+  }
+  addEventListener('resize', resize); resize();
+  var last = performance.now();
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    ctx.clearRect(0, 0, W, H); ctx.fillStyle = '#fff';
+    for (var i = 0; i < flakes.length; i++) {
+      var f = flakes[i]; f.y += f.vy * dt; f.ph += f.sp * dt;
+      var x = f.x + Math.sin(f.ph) * f.sw;
+      if (f.y > H + 4) { flakes[i] = make(false); continue; }
+      ctx.globalAlpha = f.a; ctx.beginPath(); ctx.arc(x, f.y, f.r, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1; requestAnimationFrame(frame);
+  }
+  document.addEventListener('visibilitychange', function () { last = performance.now(); });
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

@@ -208,18 +208,22 @@ function renderProfile() {
   document.getElementById('clientLockedBox').hidden = hasSub;
 }
 
+/* аватар по умолчанию: static/ava.png, если свой не загружен (или не открылся) */
+const DEFAULT_AVATAR = '/static/ava.png';
 function renderAvatar(el, u) {
   if (!el || !u) return;
   const uname = u.username || '?';
-  el.textContent = uname.charAt(0);
-  if (u.avatar && /^\/uploads\/local\/[\w.-]+$/.test(String(u.avatar))) {
-    const img = document.createElement('img');
-    img.alt = '';
-    img.addEventListener('error', () => { el.textContent = uname.charAt(0); });
-    img.src = u.avatar;
-    el.textContent = '';
-    el.append(img);
-  }
+  const custom = u.avatar && /^\/uploads\/local\/[\w.-]+$/.test(String(u.avatar));
+  const img = document.createElement('img');
+  img.alt = '';
+  let fell = false;
+  img.addEventListener('error', () => {
+    if (custom && !fell) { fell = true; img.src = DEFAULT_AVATAR; }
+    else { img.remove(); el.textContent = uname.charAt(0); }
+  });
+  img.src = custom ? u.avatar : DEFAULT_AVATAR;
+  el.textContent = '';
+  el.append(img);
 }
 
 /* ── Навигация кабинета ── */
