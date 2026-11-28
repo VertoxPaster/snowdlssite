@@ -6,46 +6,41 @@
   <title>Личный кабинет — SnowClient</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="ready">
 
 <div class="bg-base"></div>
-<div class="ambient-orbs" aria-hidden="true">
-  <span class="orb orb-1"></span>
-  <span class="orb orb-2"></span>
-  <span class="orb orb-3"></span>
-</div>
 <canvas class="smoke-canvas" id="smokeCanvas" aria-hidden="true"></canvas>
 <div class="bg-grid"></div>
 <div class="cursor-glow" id="cursorGlow"></div>
 
-<!-- ═════ NAVBAR (UNIFIED LIQUID GLASS) ═════ -->
+<!-- ═════ NAVBAR (ZENITH PILL) ═════ -->
 <nav class="navbar scrolled" id="navbar">
-  <div class="nav-pill">
-    <a class="nav-logo" href="/">
-      <span class="logo-flake">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
-          <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
-        </svg>
-      </span>
-      <span class="logo-text">SnowClient</span>
-    </a>
-
+  <div class="nav-pill nav-pill-zenith">
     <ul class="nav-center">
-      <li><a href="/#showcase" data-i18n="nav1">Модули</a></li>
-      <li><a href="/#video"    data-i18n="nav2">Обзор</a></li>
       <li><a href="/#pricing"  data-i18n="nav3">Тарифы</a></li>
+      <li><a href="/#features" data-i18n="nav1">Функции</a></li>
+      <li><a href="/#video"    data-i18n="nav2">Видеообзор</a></li>
       <li><a href="/#support"  data-i18n="nav4">Поддержка</a></li>
     </ul>
+
+    <a class="nav-logo nav-logo-center" href="/" aria-label="SnowClient">
+      <span class="logo-flake">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
+          <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
+        </svg>
+      </span>
+    </a>
 
     <div class="nav-right">
       <div class="lang-selector" id="langSelector">
         <button class="lang-btn" id="langBtn" type="button" onclick="toggleLangDropdown()">
-          <span id="langFlag">RU</span>
+          <span id="langFlag">🇷🇺</span>
           <span id="langLabel">RU</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <polyline points="6,9 12,15 18,9"></polyline>
           </svg>
         </button>
@@ -54,7 +49,7 @@
 
       <a class="btn btn-outline cab-nav-link" id="cabAdminBtn" href="/admin" hidden data-i18n="cabAdmin">Админ</a>
       <button class="btn btn-outline cab-logout cab-nav-link" type="button" onclick="logout()" data-i18n="cabLogout">Выйти</button>
-      <button class="nav-buy" type="button" onclick="openPaymentModal('month')" data-i18n="navBuy">Купить</button>
+      <button class="nav-buy nav-buy-pill" type="button" onclick="openPaymentModal('month')" data-i18n="navBuy">Купить</button>
     </div>
   </div>
 </nav>
@@ -63,6 +58,7 @@
 <main class="cab-page">
   <div class="container">
 
+    <!-- Хлебные крошки -->
     <nav class="cab-crumbs" aria-label="breadcrumb">
       <a href="/">SnowClient</a>
       <span class="cab-crumb-sep" aria-hidden="true">/</span>
@@ -71,11 +67,16 @@
       <b id="cabCrumbCurrent" aria-current="page" data-i18n="cabTabOverview">Обзор</b>
     </nav>
 
+    <!-- Сетка: Сайдбар + Контент -->
     <div class="cab-layout">
       <aside class="cab-sidebar glass" aria-label="Навигация кабинета">
+        <!-- Профиль в шапке сайдбара -->
         <div class="cab-side-user">
           <button class="cab-avatar-btn" id="cabAvatarBtn" type="button" onclick="pickAvatar()" aria-label="Сменить аватар">
             <span class="cab-avatar" id="cabAvatar">?</span>
+            <span class="cab-avatar-edit" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </span>
           </button>
           <input type="file" id="avatarFile" accept="image/png,image/jpeg,image/gif,image/webp" hidden />
           <div class="cab-side-user-meta">
@@ -84,23 +85,27 @@
           </div>
         </div>
 
-        <div class="cab-side-sep"></div>
+        <div class="cab-side-sep" style="margin-top:8px;"></div>
 
         <div class="cab-nav" id="cabNav" role="tablist" aria-orientation="vertical">
           <button class="cab-nav-btn active" type="button" role="tab" id="tab-overview" data-tab="overview" aria-controls="panel-overview" aria-selected="true" tabindex="0" onclick="switchCabTab('overview')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
             <span class="cab-nav-label" data-i18n="cabTabOverview">Обзор</span>
             <kbd class="cab-nav-key" aria-hidden="true">1</kbd>
           </button>
           <button class="cab-nav-btn" type="button" role="tab" id="tab-client" data-tab="client" aria-controls="panel-client" aria-selected="false" tabindex="-1" onclick="switchCabTab('client')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span class="cab-nav-label" data-i18n="cabTabClient">Скачать клиент</span>
-            <span class="cab-nav-badge" data-badge="client" hidden title="Нужна подписка" data-i18n-title="cabNavLocked">Lock</span>
+            <span class="cab-nav-badge" data-badge="client" hidden title="Нужна подписка" data-i18n-title="cabNavLocked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></span>
             <kbd class="cab-nav-key" aria-hidden="true">2</kbd>
           </button>
           <button class="cab-nav-btn" type="button" role="tab" id="tab-keys" data-tab="keys" aria-controls="panel-keys" aria-selected="false" tabindex="-1" onclick="switchCabTab('keys')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
             <span class="cab-nav-label" data-i18n="cabTabKeys">Ключи и оплата</span>
             <kbd class="cab-nav-key" aria-hidden="true">3</kbd>
           </button>
           <button class="cab-nav-btn" type="button" role="tab" id="tab-settings" data-tab="settings" aria-controls="panel-settings" aria-selected="false" tabindex="-1" onclick="switchCabTab('settings')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
             <span class="cab-nav-label" data-i18n="cabTabSettings">Настройки</span>
             <kbd class="cab-nav-key" aria-hidden="true">4</kbd>
           </button>
@@ -109,26 +114,29 @@
         <div class="cab-side-sep"></div>
 
         <a class="cab-side-link" href="/">
-          <span data-i18n="cabBackHome">← На главную</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          <span data-i18n="cabBackHome">На главную</span>
         </a>
         <button class="cab-side-link cab-logout" type="button" onclick="logout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
           <span data-i18n="cabLogout">Выйти</span>
         </button>
       </aside>
 
       <div class="cab-main">
 
-        <!-- ВКЛАДКА 1: ОБЗОР -->
+        <!-- ВКЛАДКА 1: ОБЗОР (БЕЗ БАЛАНСА И РУБЛЕЙ) -->
         <section class="cab-panel active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="-1">
+          <!-- Скрытый элемент на случай обращения из cabinet.js -->
           <span id="cabBalance" hidden></span>
 
-          <div class="cab-stats-2">
+          <div class="cab-stats-3" style="grid-template-columns: 1fr 1fr;">
             <div class="cab-stat glass spot">
               <div class="cab-stat-head">
                 <span class="cab-stat-label">Подписка на клиент</span>
                 <span class="cab-sub-pill inactive" id="cabSubPill">—</span>
               </div>
-              <div class="cab-stat-value" id="cabSubStateText">Статус аккаунта</div>
+              <div class="cab-stat-value" id="cabSubStateText">Аккаунт</div>
               <div class="cab-stat-sub" id="cabEmail"></div>
             </div>
 
@@ -143,16 +151,19 @@
 
           <div class="cab-quick" aria-label="Быстрые действия">
             <button class="cab-quick-btn glass spot" type="button" onclick="switchCabTab('client')">
+              <span class="cab-quick-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
               <span class="cab-quick-text" data-i18n="cabTabClient">Скачать клиент</span>
-              <span class="cab-quick-arrow">→</span>
+              <svg class="cab-quick-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </button>
             <button class="cab-quick-btn glass spot" type="button" onclick="switchCabTab('keys')">
+              <span class="cab-quick-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg></span>
               <span class="cab-quick-text" data-i18n="cabQuickKey">Активировать ключ</span>
-              <span class="cab-quick-arrow">→</span>
+              <svg class="cab-quick-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </button>
             <button class="cab-quick-btn glass spot" type="button" onclick="switchCabTab('settings')">
+              <span class="cab-quick-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg></span>
               <span class="cab-quick-text" data-i18n="cabTabSettings">Настройки</span>
-              <span class="cab-quick-arrow">→</span>
+              <svg class="cab-quick-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
             </button>
           </div>
 
@@ -176,31 +187,39 @@
 
             <h2 class="client-card-title" data-i18n="clientTitle">SnowClient</h2>
             <p class="client-card-desc" data-i18n="clientDesc">
-              Скачайте лоадер и запускайте Minecraft 1.21.11 с SnowClient.
+              Скачайте клиент и запускайте Minecraft 1.21.11 с SnowClient.
             </p>
 
+            <!-- Блок если подписка ЕСТЬ -->
             <div id="clientAllowedBox" hidden>
               <div class="client-dl-row">
-                <button class="btn btn-primary" id="btnDownloadClient" type="button" onclick="downloadClient()">
+                <button class="btn btn-primary" id="btnDownloadClient" type="button" onclick="downloadClient()" style="border-radius:99px;">
                   <span class="spinner"></span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
                   <span data-i18n="clientBtnDownload">Скачать SnowClient.exe</span>
                 </button>
                 <span class="client-meta-note" id="clientBindNote"></span>
               </div>
             </div>
 
+            <!-- Блок если подписки НЕТ -->
             <div id="clientLockedBox" class="client-locked" hidden>
               <div class="client-locked-text">
                 <strong data-i18n="clientNoSubTitle">Требуется активная подписка</strong>
                 <p data-i18n="clientNoSubDesc">Приобретите подписку или активируйте ключ во вкладке «Ключи и оплата», чтобы открыть доступ к скачиванию.</p>
               </div>
               <div class="client-locked-btns">
-                <a class="btn btn-primary" id="cabBuyClientBtn" href="#buy" data-i18n="cabBuySub">Купить подписку</a>
+                <a class="btn btn-primary" id="cabBuyClientBtn" href="#buy" style="border-radius:99px;" data-i18n="cabBuySub">Купить подписку</a>
                 <button class="btn btn-outline" type="button" onclick="switchCabTab('keys')" data-i18n="cabActivate">Активировать ключ</button>
               </div>
             </div>
           </div>
 
+          <!-- Пошаговая инструкция -->
           <div class="cab-steps-grid">
             <div class="cab-card cab-step-card glass spot">
               <div class="cab-step-num">01</div>
@@ -227,7 +246,7 @@
             <p class="cab-card-sub" data-i18n="cabKeyHint">После покупки вставь полученный ключ ниже — подписка активируется мгновенно.</p>
             <form class="cab-key" onsubmit="activateKey(event)">
               <input type="text" id="cabKeyInput" class="cab-key-input" autocomplete="off" spellcheck="false" placeholder="SNW-XXXX-XXXX-XXXX" />
-              <button class="btn btn-primary" id="cabKeyBtn" type="submit">
+              <button class="btn btn-primary" id="cabKeyBtn" type="submit" style="border-radius:99px;">
                 <span class="spinner"></span>
                 <span data-i18n="cabActivate">Активировать</span>
               </button>
@@ -240,7 +259,7 @@
                 <h2 data-i18n="cabFunpayTitle">Покупка подписки</h2>
                 <p class="cab-card-sub" style="margin-bottom:0;" data-i18n="cabFunpayDesc">Выбор тарифа и автоматическая выдача подписки на аккаунт.</p>
               </div>
-              <a class="btn btn-primary" id="cabBuyKeysBtn" href="#buy" data-i18n="cabBuySub">Купить подписку →</a>
+              <a class="btn btn-primary" id="cabBuyKeysBtn" href="#buy" style="border-radius:99px;" data-i18n="cabBuySub">Купить подписку →</a>
             </div>
           </div>
         </section>
@@ -255,7 +274,7 @@
                   <span class="cab-avatar" id="setAvatarPreview">?</span>
                   <div>
                     <div class="cab-avatar-actions">
-                      <button class="btn btn-primary" id="avatarUploadBtn" type="button" onclick="pickAvatar()">
+                      <button class="btn btn-primary" id="avatarUploadBtn" type="button" onclick="pickAvatar()" style="border-radius:99px;">
                         <span class="spinner"></span>
                         <span data-i18n="cabAvatarUpload">Загрузить аватар</span>
                       </button>
@@ -301,16 +320,20 @@
 <!-- Нижняя навигация (мобильные) -->
 <nav class="cab-tabbar" role="tablist" aria-label="Навигация кабинета">
   <button class="cab-tabbar-btn active" type="button" role="tab" data-tab="overview" aria-controls="panel-overview" aria-selected="true" tabindex="0" onclick="switchCabTab('overview')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
     <span data-i18n="cabTabOverview">Обзор</span>
   </button>
   <button class="cab-tabbar-btn" type="button" role="tab" data-tab="client" aria-controls="panel-client" aria-selected="false" tabindex="-1" onclick="switchCabTab('client')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     <span data-i18n="cabTabClientShort">Клиент</span>
     <i class="cab-tabbar-dot" data-badge="client" hidden></i>
   </button>
   <button class="cab-tabbar-btn" type="button" role="tab" data-tab="keys" aria-controls="panel-keys" aria-selected="false" tabindex="-1" onclick="switchCabTab('keys')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
     <span data-i18n="cabTabKeysShort">Ключи</span>
   </button>
   <button class="cab-tabbar-btn" type="button" role="tab" data-tab="settings" aria-controls="panel-settings" aria-selected="false" tabindex="-1" onclick="switchCabTab('settings')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
     <span data-i18n="cabTabSettings">Настройки</span>
   </button>
 </nav>
