@@ -29,7 +29,7 @@
   }
   function buy(){
     document.querySelectorAll('a,button').forEach(function(b){
-      if(b.querySelector('.gi-buy')) return;
+      if(b.querySelector('.gi-buy')||b.closest('.nav-center,.mobile-menu,.footer')) return;
       if(/^\s*(купить|buy|kup|купити|satın al)/i.test(b.textContent)) b.insertAdjacentHTML('afterbegin',IC.buy);
     });
   }

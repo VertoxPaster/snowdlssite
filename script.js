@@ -345,6 +345,7 @@ function setLanguage(lang) {
     </svg>
     ${t.buyNowHero}
   `;
+  applyHeroShowcaseTexts(lang);
   const heroBtnLearn = document.getElementById('heroBtnLearn');
   if (heroBtnLearn) heroBtnLearn.textContent = t.learnMore;
 
@@ -396,6 +397,7 @@ const FEATURE_ICONS = [
 
 function buildFeatures() {
   const grid  = document.getElementById('featuresGrid');
+  if (!grid) return; // сетки карточек больше нет — секция «Интерфейс» статична
   const items = CONFIG.features[currentLang] ?? CONFIG.features.ru;
 
   grid.innerHTML = items.map((f, i) => `
@@ -713,6 +715,11 @@ function populateContact() {
   const tgCard = document.getElementById('supportTelegramCard');
   if (tgCard) tgCard.href = telegram;
 
+  const scD = document.getElementById('scDiscord');  if (scD) scD.href = discord;
+  const scT = document.getElementById('scTelegram'); if (scT) scT.href = telegram;
+  const scY = document.getElementById('scYoutube');
+  if (scY && CONFIG.contact.youtube) { scY.href = CONFIG.contact.youtube; scY.style.display = ''; }
+
   const footerDiscord  = document.getElementById('footerDiscord');
   const footerTelegram = document.getElementById('footerTelegram');
   if (footerDiscord)  footerDiscord.href  = discord;
@@ -919,6 +926,44 @@ function renderAuthUI() {
     bal.hidden = true;
     if (mob) { mob.setAttribute('data-i18n', 'navLogin'); mob.textContent = tt('navLogin'); }
   }
+}
+
+
+/* ════════════════════════════════════════
+   HERO-КНОПКИ И СЕКЦИЯ «ИНТЕРФЕЙС» (тексты по языкам)
+════════════════════════════════════════ */
+const SHOWCASE_TEXTS = {
+  ru: { prices:'Посмотреть цены', reg:'Создать аккаунт',
+        eyebrow:'Подробнее об интерфейсе', title:'Настройки там, где они нужны.',
+        sub:'Листайте модули, меняйте параметры и переключайтесь между режимами отображения в одном меню.',
+        updates:'Обновления и превью' },
+  en: { prices:'View pricing', reg:'Create account',
+        eyebrow:'A closer look at the interface', title:'Settings where you need them.',
+        sub:'Browse modules, change settings and switch between display options in one menu.',
+        updates:'Updates and previews' },
+  uk: { prices:'Переглянути ціни', reg:'Створити акаунт',
+        eyebrow:'Детальніше про інтерфейс', title:'Налаштування там, де вони потрібні.',
+        sub:'Гортайте модулі, змінюйте параметри та перемикайтеся між режимами відображення в одному меню.',
+        updates:'Оновлення та прев’ю' },
+  pl: { prices:'Zobacz ceny', reg:'Utwórz konto',
+        eyebrow:'Bliższe spojrzenie na interfejs', title:'Ustawienia tam, gdzie ich potrzebujesz.',
+        sub:'Przeglądaj moduły, zmieniaj ustawienia i przełączaj tryby wyświetlania w jednym menu.',
+        updates:'Aktualizacje i podglądy' },
+  tr: { prices:'Fiyatları gör', reg:'Hesap oluştur',
+        eyebrow:'Arayüze yakından bakış', title:'Ayarlar tam ihtiyacınız olan yerde.',
+        sub:'Modüllere göz atın, ayarları değiştirin ve görünüm seçenekleri arasında tek menüden geçiş yapın.',
+        updates:'Güncellemeler ve önizlemeler' }
+};
+function applyHeroShowcaseTexts(lang) {
+  const x = SHOWCASE_TEXTS[lang] || SHOWCASE_TEXTS.ru;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('heroBtnPrices', x.prices);   set('heroBtnRegister', x.reg);
+  set('scEyebrow', x.eyebrow);      set('scTitle', x.title);
+  set('scSub', x.sub);              set('scUpdates', x.updates);
+}
+function heroRegister() {
+  if (typeof currentUser !== 'undefined' && currentUser) { location.href = '/cabinet'; return; }
+  openAuth('register');
 }
 
 function onAuthClick() {

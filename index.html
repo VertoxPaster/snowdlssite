@@ -15,6 +15,7 @@
 <!-- ═════ BACKGROUND ═════ -->
 <div class="bg-base"></div>
 <canvas class="smoke-canvas" id="smokeCanvas" aria-hidden="true"></canvas>
+<canvas class="snow-canvas" id="snowCanvas" aria-hidden="true"></canvas>
 <div class="bg-grid"></div>
 <div class="cursor-glow" id="cursorGlow"></div>
 <div class="scroll-progress" id="scrollProgress"></div>
@@ -26,7 +27,6 @@
     <ul class="nav-center" id="navCenter">
       <li><a href="#pricing"  data-i18n="nav3">Тарифы</a></li>
       <li><a href="#features" data-i18n="nav1">Функции</a></li>
-      <li><a href="#video"    data-i18n="nav2">Видеообзор</a></li>
       <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
     </ul>
 
@@ -66,7 +66,6 @@
 <div class="mobile-menu" id="mobileMenu">
   <a href="#pricing"  onclick="closeMobileMenu()" data-mob-i18n="nav3">Тарифы</a>
   <a href="#features" onclick="closeMobileMenu()" data-mob-i18n="nav1">Функции</a>
-  <a href="#video"    onclick="closeMobileMenu()" data-mob-i18n="nav2">Видеообзор</a>
   <a href="#support"  onclick="closeMobileMenu()" data-mob-i18n="nav4">Поддержка</a>
   <button class="mobile-auth" id="mobileAuth" type="button" onclick="closeMobileMenu(); onAuthClick()">
     <span id="mobileAuthLabel" data-i18n="navLogin">Войти</span>
@@ -74,7 +73,7 @@
 </div>
 
 <!-- ═════ HERO (ZENITH CENTERED STYLE) ═════ -->
-<!-- ФОН: hero-bg.jpg (картинка до раздела «Видеообзор») -->
+<!-- ФОН: hero-bg.jpg (картинка до первого разделителя) -->
 <div class="top-bg">
 <section id="hero" style="padding:0;">
   <div class="hero hero-zenith">
@@ -95,27 +94,9 @@
         Визуалы TargetESP, ChinaHat, JumpCircles. Обходы под FunTime, ReallyWorld и HolyWorld. От 180 ₽, лоадер в кабинете сразу после оплаты.
       </p>
 
-      <div class="hero-z-cta-row anim-up-4">
-        <div class="hero-z-avatars" aria-hidden="true">
-          <span>S</span><span>V</span><span>K</span><span>M</span>
-        </div>
-
-        <a href="#pricing" class="btn btn-primary magnetic hero-z-btn" id="heroBtnBuy">
-          Купить SnowClient
-        </a>
-
-        <span class="hero-z-users">Fabric 1.21.11</span>
-      </div>
-
-      <div class="hero-z-perks anim-up-5">
-        <span>• Мгновенная выдача</span>
-        <span>• Поддержка ПН–ПТ 9:00–00:00 МСК</span>
-        <span>• Без автосписаний</span>
-      </div>
-
-      <!-- СКРИНШОТ: положи файл screenshot.png рядом с index.html -->
-      <div class="shot-slot glass">
-        <img src="screenshot.png" alt="SnowClient" onerror="this.parentNode.classList.add('empty');this.remove()" />
+      <div class="hero-z-cta-row hero-z-cta-two anim-up-4">
+        <a href="#pricing" class="btn btn-primary magnetic hero-z-btn" id="heroBtnPrices">Посмотреть цены</a>
+        <button type="button" class="btn btn-outline magnetic hero-z-btn hero-z-btn-ghost" id="heroBtnRegister" onclick="heroRegister()">Создать аккаунт</button>
       </div>
 
     </div>
@@ -168,71 +149,34 @@
 
 <div class="divider"></div>
 
-<!-- ═════ VIDEO / SHOWCASE ═════ -->
-<section id="video">
-  <div class="container">
-    <div class="video-section-container">
+<div class="rest-bg" id="restBg">
 
-      <div class="reveal">
-        <div class="section-eyebrow" data-i18n="eyebrowVideo">Обзор</div>
-        <h2 class="section-title" data-i18n="sectionVideo">Попробуй SnowClient</h2>
-        <p class="section-subtitle" data-i18n="videoSubtitle">Продвинутые функции, полностью интерактивный ClickGUI и высокопроизводительные механики.</p>
-
-        <div class="hero-chips" style="margin-top: 20px;">
-          <span class="chip">Fabric 1.21.11</span>
-          <span class="chip">ClickGUI</span>
-          <span class="chip">Обходы GrimAC · Matrix · Vulcan</span>
-        </div>
-
-        <div class="video-bullets">
-          <div class="video-bullet">
-            <div class="video-bullet-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></div>
-            <span class="video-bullet-text" data-i18n="videoBullet1">Реальный геймплей без монтажа</span>
-          </div>
-          <div class="video-bullet">
-            <div class="video-bullet-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></div>
-            <span class="video-bullet-text" data-i18n="videoBullet2">Показ всех ключевых функций и ротаций</span>
-          </div>
-          <div class="video-bullet">
-            <div class="video-bullet-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></div>
-            <span class="video-bullet-text" data-i18n="videoBullet3">Настройка интерфейса и конфигов в деталях</span>
-          </div>
-        </div>
+<!-- ═════ INTERFACE SHOWCASE ═════ -->
+<section id="features" class="showcase">
+  <div class="showcase-inner">
+    <div class="showcase-text reveal">
+      <div class="showcase-eyebrow">
+        <svg class="gi gi-fill" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><path d="M20.71 4.63l-1.34-1.34a1 1 0 0 0-1.41 0L9 12.25 11.75 15l8.96-8.96a1 1 0 0 0 0-1.41M7 14a3 3 0 0 0-3 3c0 1.31-1.16 2-2 2c.92 1.22 2.5 2 4 2a4 4 0 0 0 4-4a3 3 0 0 0-3-3"/></svg>
+        <span id="scEyebrow">Подробнее об интерфейсе</span>
       </div>
-
-      <div class="reveal reveal-d2">
-        <div class="video-embed-wrap" id="videoContainer">
-          <div class="video-embed-placeholder" id="heroVideoFrame">
-            <div class="play-icon-wrap">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </div>
-            <p id="videoPlaceholderText">Видеообзор скоро появится здесь</p>
-          </div>
-        </div>
+      <h2 class="showcase-title" id="scTitle">Настройки там, где они нужны.</h2>
+      <p class="showcase-sub" id="scSub">Листайте модули, меняйте параметры и переключайтесь между режимами отображения в одном меню.</p>
+      <div class="showcase-updates" id="scUpdates">Обновления и превью</div>
+      <div class="showcase-social">
+        <a id="scDiscord" href="#" target="_blank" rel="noopener" aria-label="Discord">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a.1.1 0 0 0-.07.03c-.18.33-.39.76-.53 1.09a16.1 16.1 0 0 0-4.8 0c-.14-.34-.35-.76-.54-1.09c-.01-.02-.04-.03-.07-.03c-1.5.26-2.93.71-4.27 1.33c-.01 0-.02.01-.03.02c-2.72 4.07-3.47 8.03-3.1 11.95c0 .02.01.04.03.05c1.8 1.32 3.53 2.12 5.24 2.65c.03.01.06 0 .07-.02c.4-.55.76-1.13 1.07-1.74c.02-.04 0-.08-.04-.09c-.57-.22-1.11-.48-1.64-.78c-.04-.02-.04-.08-.01-.11c.11-.08.22-.17.33-.25c.02-.02.05-.02.07-.01c3.44 1.57 7.15 1.57 10.55 0c.02-.01.05-.01.07.01c.11.09.22.17.33.26c.04.03.04.09-.01.11c-.52.31-1.07.56-1.64.78c-.04.01-.05.06-.04.09c.32.61.68 1.19 1.07 1.74c.03.01.06.02.09.01c1.72-.53 3.45-1.33 5.25-2.65c.02-.01.03-.03.03-.05c.44-4.53-.73-8.46-3.1-11.95c-.01-.01-.02-.02-.04-.02M8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.84 2.12-1.89 2.12m6.97 0c-1.03 0-1.89-.95-1.89-2.12s.84-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12c0 1.17-.83 2.12-1.89 2.12"/></svg>
+        </a>
+        <a id="scTelegram" href="#" target="_blank" rel="noopener" aria-label="Telegram">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23l7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3L3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42"/></svg>
+        </a>
+        <a id="scYoutube" href="#" target="_blank" rel="noopener" aria-label="YouTube" style="display:none">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.58 7.19a2.5 2.5 0 0 0-1.76-1.77C18.25 5 12 5 12 5s-6.25 0-7.82.42A2.5 2.5 0 0 0 2.42 7.19C2 8.76 2 12 2 12s0 3.24.42 4.81a2.5 2.5 0 0 0 1.76 1.77C5.75 19 12 19 12 19s6.25 0 7.82-.42a2.5 2.5 0 0 0 1.76-1.77C22 15.24 22 12 22 12s0-3.24-.42-4.81M10 15V9l5.2 3z"/></svg>
+        </a>
       </div>
-
     </div>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<!-- ═════ FEATURES ═════ -->
-<section id="features">
-  <div class="container">
-
-    <div class="section-header reveal">
-      <div class="section-eyebrow" data-i18n="eyebrowFeatures">Преимущества</div>
-      <h2 class="section-title" data-i18n="sectionFeatures">Возможности SnowClient</h2>
-      <p class="section-subtitle" data-i18n="featuresSubtitle">Всё, что ты получаешь сразу после покупки.</p>
+    <div class="showcase-laptop reveal reveal-d2">
+      <img src="static/laptop.png" alt="SnowClient" loading="lazy" decoding="async" />
     </div>
-
-    <!-- СКРИНШОТ: положи файл screenshot-features.png рядом с index.html -->
-    <div class="shot-slot shot-slot-lg glass reveal">
-      <img src="screenshot-features.png" alt="SnowClient GUI" onerror="this.parentNode.classList.add('empty');this.remove()" />
-    </div>
-    <div class="features-grid" id="featuresGrid"></div>
-
   </div>
 </section>
 
@@ -318,7 +262,6 @@
       <ul>
         <li><a href="#pricing"  data-i18n="nav3">Все тарифы</a></li>
         <li><a href="#features" data-i18n="nav1">Функции</a></li>
-        <li><a href="#video"    data-i18n="nav2">Видеообзор</a></li>
         <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
       </ul>
     </div>
@@ -344,6 +287,7 @@
 
   <div class="footer-mark" aria-hidden="true">SnowClient</div>
 </footer>
+</div><!-- /rest-bg -->
 
 <!-- ═════ PAYMENT MODAL ═════ -->
 <div class="modal-overlay" id="modalPayment" onclick="closeModalOutside(event,'modalPayment')">
@@ -538,6 +482,7 @@
 
 <script src="config.js"></script>
 <script src="smoke-shader.js"></script>
+<script src="static/snow.js"></script>
 <script src="script.js"></script>
 <script src="client-auth.js"></script>
 <script src="icons.js"></script>

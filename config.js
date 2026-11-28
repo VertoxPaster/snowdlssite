@@ -56,7 +56,8 @@ const CONFIG = {
     email:   "snowclient-support@proton.me",
     hours:   "ПН–ПТ 9:00–00:00 МСК",
     discord: "https://discord.gg/7pJcgXMPKj",
-    telegram:"https://t.me/Snowdls"
+    telegram:"https://t.me/Snowdls",
+    youtube: ""   // ссылка на YouTube-канал: если заполнить, иконка появится в секции «Интерфейс»
   },
 
   // ─── ВИДЕО ───────────────────────────────────────────────
