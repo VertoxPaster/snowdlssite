@@ -2856,3 +2856,7 @@ body{background:#09090b}
 .z-stat-ico .gi,.support-icon .gi{width:26px;height:26px}
 .video-bullet-icon .gi{width:14px;height:14px;stroke-width:2.2}
 .nav-auth-avatar .gi{width:20px;height:20px}
+.gi-fill{fill:currentColor!important;stroke:none!important}
+.feature-icon-wrap .gi{width:20px;height:20px}
+.btn .gi-buy,.nav-buy .gi-buy,.hero-z-btn .gi-buy{width:1.15em;height:1.15em;margin-right:8px;vertical-align:-.2em;display:inline-block}
+.nav-buy,.hero-z-btn{display:inline-flex;align-items:center;justify-content:center}
