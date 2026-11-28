@@ -1238,10 +1238,16 @@ def payments_create(h, body, user):
     except Exception:
         traceback.print_exc()
         return h.json_out({"message": "Не удалось создать счёт, попробуйте позже или купите через FunPay"}, 502)
+    method = str(body.get("method") or "cryptobot").strip().lower()
+    # конкретная монета — страница оплаты в браузере; «Crypto Bot» — ссылка в Telegram
+    if method == "cryptobot":
+        pay_url = inv.get("bot_invoice_url") or inv.get("web_app_invoice_url") or inv.get("pay_url")
+    else:
+        pay_url = inv.get("web_app_invoice_url") or inv.get("bot_invoice_url") or inv.get("pay_url")
     _db("INSERT INTO payments(order_id,user_id,product_id,amount,promo,invoice_id,created_at) VALUES(?,?,?,?,?,?,?)",
         (order_id, user["id"], int(prod["id"]), amount, promo_code, inv["invoice_id"], now_iso()))
     return h.json_out({"success": True, "orderId": order_id, "amount": amount,
-                       "payUrl": inv.get("bot_invoice_url") or inv.get("pay_url")})
+                       "payUrl": pay_url})
 
 
 @proute("GET", r"^/api/payments/([A-Za-z0-9-]{1,40})$")
