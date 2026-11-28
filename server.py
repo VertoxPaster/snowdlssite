@@ -498,7 +498,7 @@ def launcher_auth(h, body, user):
     if not has_active_subscription(u):
         return h.json_out({"status": "error", "message": "Нет активной подписки. Оформите на сайте"}, 403)
 
- if not _bind_or_verify_hwid(u["id"], hwid):
+    if not _bind_or_verify_hwid(u["id"], hwid):
         return h.json_out(
             {"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"},
             403,
@@ -515,7 +515,7 @@ def launcher_auth(h, body, user):
         **_client_hashes(),
     })
 
-   
+
 @route("POST", "/api/launcher/web-session")
 def launcher_web_session(h, body, user):
     if not isinstance(body, dict):
@@ -546,10 +546,13 @@ def launcher_web_session(h, body, user):
     if not _bind_or_verify_hwid(u["id"], hwid):
         return h.json_out({"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"}, 403)
 
+    launches = _record_launch(u["id"])
+
     return h.json_out({
         "status": "ok",
         "username": u["username"],
         "role": u["role"],
+        "launch_count": launches,
         "key_envelope": make_key_envelope(hwid, nonce),
         **_client_hashes(),
     })
