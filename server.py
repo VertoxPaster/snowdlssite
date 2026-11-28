@@ -277,7 +277,7 @@ _cosmetics_cache = {"t": 0, "data": None}
 def fetch_products():
     return [
         {"id": 1, "slug": "month",    "title": "SnowClient — 30 Дней",   "price": 180, "duration": 30},
-        {"id": 2, "slug": "3months",  "title": "SnowClient — 3 Месяца",  "price": 340, "duration": 90},
+        {"id": 2, "slug": "3months",  "title": "SnowClient — 3 Месяца",  "price": 340, "duration": 90, "hidden": True},
         {"id": 3, "slug": "6months",  "title": "SnowClient — 6 Месяцев", "price": 570, "duration": 180},
         {"id": 4, "slug": "lifetime", "title": "SnowClient — Навсегда",  "price": 800, "duration": None},
         {"id": 5, "slug": "hwid",     "title": "Сброс HWID",             "price": 149, "duration": None, "type": "hwid_reset"},
@@ -790,7 +790,7 @@ def purchase_product(h, body, user):
         return h.json_out({"message": "Не авторизован"}, 401)
     pid = body.get("productId")
     prod = find_product(pid)
-    if not prod:
+    if not prod or prod.get("hidden"):
         return h.json_out({"message": "Товар не найден"}, 400)
     price = float(prod.get("price") or 0)
     if is_hwid_reset(prod) and not (user.get("hwid") or "").strip():
@@ -1264,7 +1264,7 @@ def payments_create(h, body, user):
         return h.json_out({"message": "Слишком много попыток, подождите немного"}, 429)
     note_fail(k)
     prod = find_product(body.get("planId") or body.get("productId"))
-    if not prod:
+    if not prod or prod.get("hidden"):
         return h.json_out({"message": "Тариф не найден"}, 400)
     assets = CRYPTO_ASSETS.get(str(body.get("method") or "cryptobot").strip().lower())
     if not assets:
@@ -2158,7 +2158,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     STATIC_FILES = (
         "/", "/index.html", "/admin.html", "/admin.js",
         "/cabinet.html", "/cabinet.js", "/client-auth.js", "/smoke-shader.js",
-        "/terms.html", "/rules.html", "/privacy.html",
+        "/terms.html", "/rules.html", "/privacy.html", "/documents.html",
         "/style.css", "/script.js", "/config.js",
         "/favicon.ico", "/manifest.json", "/robots.txt",
     )
@@ -2246,7 +2246,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.path = "/admin.html"
             elif path in ("/cabinet", "/cabinet/"):
                 self.path = "/cabinet.html"
-            elif path.rstrip("/") in ("/terms", "/rules", "/privacy"):
+            elif path.rstrip("/") in ("/terms", "/rules", "/privacy", "/documents"):
                 self.path = path.rstrip("/") + ".html"
             return self._serve_static()
         body = self.read_body(path) if method in ("POST", "PUT", "PATCH", "DELETE") else {}
