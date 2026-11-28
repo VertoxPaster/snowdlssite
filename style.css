@@ -2779,18 +2779,20 @@ section { padding: 72px 0; }
 }
 .pay-method-ico img{width:28px;height:28px;display:block}
 
-/* ===== ZENITH CARDS v2: единые тёмные цвета ===== */
-:root{--z-bg:#09090b;--z-card:#0b0b0d;--z-line:rgba(255,255,255,.08);--z-line-h:rgba(255,255,255,.16)}
-.glass,.cab-stat,.z-stat-card,.price-card,.feature-card,.cab-card,.card{
-  background:var(--z-card)!important;
+/* ===== ЕДИНЫЙ ТЁМНО-СЕРЫЙ СТИЛЬ + РЕАЛЬНЫЙ БЛЮР ===== */
+:root{--r:20px;--z-glass:rgba(22,22,24,.45);--z-line:rgba(255,255,255,.09);--z-line-h:rgba(255,255,255,.18);--z-blur:blur(22px) saturate(120%)}
+body{background:#09090b}
+.glass,.cab-stat,.z-stat-card,.price-card,.pricing-card,.feature-card,.cab-card,.support-card,.nav-pill,.navbar.scrolled .nav-pill,.modal,.mobile-menu,.toast,.pay-info-box{
+  background:var(--z-glass)!important;
   border:1px solid var(--z-line)!important;
-  border-radius:24px!important;
+  border-radius:var(--r)!important;
   box-shadow:none!important;
-  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+  backdrop-filter:var(--z-blur)!important;-webkit-backdrop-filter:var(--z-blur)!important;
 }
-.glass:hover,.cab-stat:hover,.z-stat-card:hover{border-color:var(--z-line-h)!important}
+.glass:hover,.cab-stat:hover,.z-stat-card:hover,.support-card:hover{border-color:var(--z-line-h)!important}
+.nav-pill{height:58px}
+.btn,.btn-primary,.btn-outline,.cab-nav-btn,.cab-nav-btn.active,input,select,textarea{border-radius:14px!important}
 .z-stat-num,.cab-stat-value{font-size:2.2rem;font-weight:800;letter-spacing:-.02em;color:#fff}
 .cab-stats-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 @media(max-width:860px){.cab-stats-3{grid-template-columns:1fr}}
-body{background:var(--z-bg)}
 .smoke-canvas{opacity:1;mix-blend-mode:normal}

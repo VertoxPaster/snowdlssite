@@ -56,7 +56,7 @@ const CONFIG = {
     email:   "snowclient-support@proton.me",
     hours:   "ПН–ПТ 9:00–00:00 МСК",
     discord: "https://discord.gg/7pJcgXMPKj",
-    telegram:"t.me/Snowdls"
+    telegram:"https://t.me/Snowdls"
   },
 
   // ─── ВИДЕО ───────────────────────────────────────────────
@@ -75,20 +75,20 @@ const CONFIG = {
   // ─── ФУНКЦИИ (FEATURES) ──────────────────────────────────
   features: {
     ru: [
-      { title: "Красивый интерфейс",  desc: "Большое количество визуальных функций, которые сделают вашу игру красочнее. Настройте оформление клиента полностью под себя." },
-      { title: "Гибкая настройка",    desc: "Настройте практически любую функцию, используйте конфигурации других пользователей и получайте максимум от клиента." },
-      { title: "Высокая оптимизация", desc: "Постоянно улучшаем производительность клиента и самой игры. Стабильный FPS даже на слабых компьютерах." },
-      { title: "Частые обновления",   desc: "Регулярно добавляем новые функции и совершенствуем существующие. Преимущества под все актуальные сервера." },
-      { title: "Лучшая поддержка",    desc: "Наша поддержка разбирается в своём деле и поможет по любому вопросу. Отвечаем ПН–ПТ 9:00–00:00 МСК." },
-      { title: "Обход античита",      desc: "Передовые технологии обхода популярных античит-систем. Играйте уверенно на любых серверах." }
+      { title: "Интерфейс", desc: "Визуальные функции и настройка оформления." },
+      { title: "Настройки", desc: "Любую функцию можно настроить, есть конфиги." },
+      { title: "Оптимизация", desc: "Стабильный FPS, в том числе на слабых ПК." },
+      { title: "Обновления", desc: "Регулярно добавляем функции и исправления." },
+      { title: "Поддержка", desc: "Отвечаем ПН–ПТ 9:00–00:00 МСК." },
+      { title: "Обход античитов", desc: "Работает на популярных серверах." }
     ],
     en: [
-      { title: "Beautiful Interface", desc: "A large number of visual features to make your game more vibrant. Customize the client appearance entirely to your liking." },
-      { title: "Deep Customization",  desc: "Configure almost any feature, use other users' configs and get the most out of the client." },
-      { title: "Top Optimization",    desc: "Constantly improving performance. Stable FPS even on weak computers." },
-      { title: "Frequent Updates",    desc: "Regularly adding new features and improving existing ones. Advantages for all relevant servers." },
-      { title: "Best Support",        desc: "Our support knows their craft and will help with any question. We reply Mon–Fri 9:00–00:00 MSK." },
-      { title: "Anti-cheat Bypass",   desc: "Advanced technologies to bypass popular anti-cheat systems. Play confidently on any servers." }
+      { title: "Interface", desc: "Visual features and appearance settings." },
+      { title: "Settings", desc: "Every feature is configurable, configs supported." },
+      { title: "Optimization", desc: "Stable FPS, including on low-end PCs." },
+      { title: "Updates", desc: "New features and fixes added regularly." },
+      { title: "Support", desc: "We reply Mon–Fri 9:00–00:00 MSK." },
+      { title: "Anticheat bypass", desc: "Works on popular servers." }
     ],
     uk: [
       { title: "Гарний інтерфейс",      desc: "Велика кількість візуальних функцій. Налаштуйте оформлення клієнта повністю під себе." },
@@ -130,11 +130,11 @@ const CONFIG = {
         price:    180,
         popular:  false,
         features: {
-          ru: ["Все функции клиента", "Базовая поддержка", "Обновления включены"],
-          en: ["All client features", "Basic support",     "Updates included"],
-          uk: ["Всі функції клієнта", "Базова підтримка",  "Оновлення включені"],
-          pl: ["Wszystkie funkcje",   "Podstawowe wsparcie","Aktualizacje wliczone"],
-          tr: ["Tüm özellikler",      "Temel destek",       "Güncellemeler dahil"]
+          ru: ["Все функции","Обновления","Поддержка"],
+          en: ["All features","Updates","Support"],
+          uk: ["Усі функції","Оновлення","Підтримка"],
+          pl: ["Wszystkie funkcje","Aktualizacje","Wsparcie"],
+          tr: ["Tüm özellikler","Güncellemeler","Destek"]
         }
       },
       {
@@ -143,11 +143,11 @@ const CONFIG = {
         price:    340,
         popular:  true,
         features: {
-          ru: ["Все функции клиента", "Приоритетная поддержка", "Обновления включены", "Доступ к бета-версиям"],
-          en: ["All client features", "Priority support",        "Updates included",    "Beta access"],
-          uk: ["Всі функції клієнта", "Пріоритетна підтримка",   "Оновлення включені",  "Доступ до бета"],
-          pl: ["Wszystkie funkcje",   "Wsparcie priorytetowe",   "Aktualizacje wliczone","Dostęp do beta"],
-          tr: ["Tüm özellikler",      "Öncelikli destek",        "Güncellemeler dahil",  "Beta erişimi"]
+          ru: ["Все функции","Обновления","Поддержка"],
+          en: ["All features","Updates","Support"],
+          uk: ["Усі функції","Оновлення","Підтримка"],
+          pl: ["Wszystkie funkcje","Aktualizacje","Wsparcie"],
+          tr: ["Tüm özellikler","Güncellemeler","Destek"]
         }
       },
       {
@@ -156,11 +156,11 @@ const CONFIG = {
         price:    570,
         popular:  false,
         features: {
-          ru: ["Все функции клиента", "Приоритетная поддержка", "Обновления включены", "Доступ к бета-версиям", "Выгодный тариф"],
-          en: ["All client features", "Priority support",        "Updates included",    "Beta access",           "Great value"],
-          uk: ["Всі функції клієнта", "Пріоритетна підтримка",   "Оновлення включені",  "Доступ до бета",         "Вигідний тариф"],
-          pl: ["Wszystkie funkcje",   "Wsparcie priorytetowe",   "Aktualizacje wliczone","Dostęp do beta",         "Korzystny plan"],
-          tr: ["Tüm özellikler",      "Öncelikli destek",        "Güncellemeler dahil",  "Beta erişimi",           "Avantajlı plan"]
+          ru: ["Все функции","Обновления","Поддержка"],
+          en: ["All features","Updates","Support"],
+          uk: ["Усі функції","Оновлення","Підтримка"],
+          pl: ["Wszystkie funkcje","Aktualizacje","Wsparcie"],
+          tr: ["Tüm özellikler","Güncellemeler","Destek"]
         }
       },
       {
@@ -169,11 +169,11 @@ const CONFIG = {
         price:    800,
         popular:  false,
         features: {
-          ru: ["Все функции клиента", "Приоритетная поддержка", "Все обновления навсегда", "Ранний доступ", "Эксклюзивный ранг"],
-          en: ["All client features", "Priority support",   "All updates forever",     "Early access",   "Exclusive rank"],
-          uk: ["Всі функції клієнта", "Пріоритетна підтримка", "Всі оновлення назавжди",  "Ранній доступ",  "Ексклюзивний ранг"],
-          pl: ["Wszystkie funkcje",   "Priorytetowe wsparcie",  "Wszystkie aktualizacje",  "Wczesny dostęp", "Ekskluzywna ranga"],
-          tr: ["Tüm özellikler",      "Öncelikli destek",    "Tüm güncellemeler",        "Erken erişim",   "Özel Discord rolü"]
+          ru: ["Все функции","Обновления","Поддержка"],
+          en: ["All features","Updates","Support"],
+          uk: ["Усі функції","Оновлення","Підтримка"],
+          pl: ["Wszystkie funkcje","Aktualizacje","Wsparcie"],
+          tr: ["Tüm özellikler","Güncellemeler","Destek"]
         }
       }
     ]
@@ -300,9 +300,9 @@ const CONFIG = {
       clientBtnDownload:     "Скачать SnowClient.exe",
       clientStarted:         "Загрузка клиента началась",
       clientNoSubTitle:      "Требуется активная подписка",
-      clientNoSubDesc:       "Приобретите подписку на FunPay или активируйте ключ во вкладке «Ключи и оплата», чтобы открыть доступ к скачиванию.",
-      cabBuyFunpay:          "Купить на FunPay",
-      cabBuyFunpayLink:      "Перейти на FunPay →",
+      clientNoSubDesc:       "Купите подписку или активируйте ключ во вкладке «Ключи и оплата», чтобы открыть доступ к скачиванию.",
+      cabBuyFunpay:          "Купить подписку",
+      cabBuyFunpayLink:      "Купить →",
       step1Title:            "Скачай и запусти",
       step1Desc:             "Загрузи SnowClient.exe и запусти от имени администратора. Нужные файлы подтянутся сами.",
       step2Title:            "Войди по логину и паролю",
@@ -310,13 +310,13 @@ const CONFIG = {
       step3Title:            "Нажми «Играть»",
       step3Desc:             "Настрой выделение RAM и разрешение экрана в клиенте и запускай Minecraft 1.21.11.",
       cabKey:                "Активация лицензионного ключа",
-      cabKeyHint:            "После покупки на FunPay вставь полученный ключ ниже — подписка активируется мгновенно.",
+      cabKeyHint:            "Если у тебя есть ключ, вставь его ниже — подписка активируется мгновенно.",
       cabKeyPh:              "SNW-XXXX-XXXX-XXXX",
       cabActivate:           "Активировать",
       cabKeyOk:              "Ключ активирован: ",
       cabKeyEmpty:           "Введите ключ",
-      cabFunpayTitle:        "Покупка подписки через FunPay",
-      cabFunpayDesc:         "Оплата банковскими картами, СБП и кошельками с гарантией сделки.",
+      cabFunpayTitle:        "Купить подписку",
+      cabFunpayDesc:         "Выбор тарифа и способа оплаты.",
       cabProfileSettings:    "Профиль",
       cabDisplayName:        "Отображаемое имя",
       cabSave:               "Сохранить",
@@ -443,9 +443,9 @@ const CONFIG = {
       clientBtnDownload:     "Download SnowClient.exe",
       clientStarted:         "Client download started",
       clientNoSubTitle:      "Active subscription required",
-      clientNoSubDesc:       "Purchase a subscription on FunPay or activate a key in the Keys & Payment tab to unlock downloads.",
-      cabBuyFunpay:          "Buy on FunPay",
-      cabBuyFunpayLink:      "Go to FunPay →",
+      clientNoSubDesc:       "Buy a subscription or activate a key in the Keys & Payment tab to unlock downloads.",
+      cabBuyFunpay:          "Buy a subscription",
+      cabBuyFunpayLink:      "Buy →",
       step1Title:            "Download & launch",
       step1Desc:             "Download SnowClient.exe and run as administrator. The required files will be fetched automatically.",
       step2Title:            "Sign in to your account",
@@ -458,7 +458,7 @@ const CONFIG = {
       cabActivate:           "Activate",
       cabKeyOk:              "Key activated: ",
       cabKeyEmpty:           "Enter a key",
-      cabFunpayTitle:        "Buy subscription via FunPay",
+      cabFunpayTitle:        "Buy a subscription",
       cabFunpayDesc:         "Pay securely with bank cards and wallets with buyer protection.",
       cabProfileSettings:    "Profile",
       cabDisplayName:        "Display name",
@@ -583,9 +583,9 @@ const CONFIG = {
       clientBtnDownload:     "Завантажити SnowClient.exe",
       clientStarted:         "Завантаження клієнта почалося",
       clientNoSubTitle:      "Потрібна активна підписка",
-      clientNoSubDesc:       "Придбайте підписку на FunPay або активуйте ключ у вкладці «Ключі та оплата», щоб відкрити доступ.",
-      cabBuyFunpay:          "Купити на FunPay",
-      cabBuyFunpayLink:      "Перейти на FunPay →",
+      clientNoSubDesc:       "Купіть підписку або активуйте ключ у вкладці «Ключі та оплата», щоб відкрити доступ.",
+      cabBuyFunpay:          "Купити підписку",
+      cabBuyFunpayLink:      "Купить →",
       step1Title:            "Завантаж і запусти",
       step1Desc:             "Завантаж SnowClient.exe та запусти від імені адміністратора. Потрібні файли підтягнуться самі.",
       step2Title:            "Увійди за логіном і паролем",
@@ -598,7 +598,7 @@ const CONFIG = {
       cabActivate:           "Активувати",
       cabKeyOk:              "Ключ активовано: ",
       cabKeyEmpty:           "Введіть ключ",
-      cabFunpayTitle:        "Купівля підписки через FunPay",
+      cabFunpayTitle:        "Купити підписку",
       cabFunpayDesc:         "Оплата банківськими картками та гаманцями з гарантією угоди.",
       cabProfileSettings:    "Профіль",
       cabDisplayName:        "Відображуване ім'я",
@@ -723,9 +723,9 @@ const CONFIG = {
       clientBtnDownload:     "Pobierz SnowClient.exe",
       clientStarted:         "Rozpoczęto pobieranie klienta",
       clientNoSubTitle:      "Wymagana aktywna subskrypcja",
-      clientNoSubDesc:       "Kup subskrypcję na FunPay lub aktywuj klucz w zakładce Klucze i płatność.",
-      cabBuyFunpay:          "Kup na FunPay",
-      cabBuyFunpayLink:      "Przejdź na FunPay →",
+      clientNoSubDesc:       "Kup subskrypcję lub aktywuj klucz w zakładce Klucze i płatność.",
+      cabBuyFunpay:          "Kup subskrypcję",
+      cabBuyFunpayLink:      "Kup →",
       step1Title:            "Pobierz i uruchom",
       step1Desc:             "Pobierz SnowClient.exe i uruchom jako administrator. Potrzebne pliki pobiorą się automatycznie.",
       step2Title:            "Zaloguj się na konto",
@@ -738,7 +738,7 @@ const CONFIG = {
       cabActivate:           "Aktywuj",
       cabKeyOk:              "Klucz aktywowany: ",
       cabKeyEmpty:           "Wpisz klucz",
-      cabFunpayTitle:        "Zakup subskrypcji przez FunPay",
+      cabFunpayTitle:        "Kup subskrypcję",
       cabFunpayDesc:         "Bezpieczna płatność kartą lub portfelem z ochroną kupującego.",
       cabProfileSettings:    "Profil",
       cabDisplayName:        "Wyświetlana nazwa",
