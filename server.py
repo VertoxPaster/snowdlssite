@@ -1226,6 +1226,8 @@ def payments_create(h, body, user):
     }
     if SITE_URL:
         params.update({"paid_btn_name": "callback", "paid_btn_url": SITE_URL + "/cabinet"})
+    if "testnet" in CRYPTO_API:
+        params.pop("accepted_assets", None)  # в тестовой сети другой набор монет
     try:
         inv = crypto_call("createInvoice", params, post=True)
     except Exception:
