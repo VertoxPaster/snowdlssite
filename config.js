@@ -15,8 +15,8 @@ const CONFIG = {
     tr: "Minecraft Fabric 1.21.11 istemcisi"
   },
   heroQuote: {
-    ru: "Клиент для Minecraft Fabric 1.21.11 от 180 ₽. Лоадер в кабинете сразу после оплаты.",
-    en: "Minecraft Fabric 1.21.11 client from 180 RUB. Loader in your cabinet right after payment.",
+    ru: "Визуалы TargetESP, ChinaHat, JumpCircles. Обходы под FunTime, ReallyWorld и HolyWorld. От 180 ₽, лоадер в кабинете сразу после оплаты.",
+    en: "TargetESP, ChinaHat, JumpCircles visuals. Bypasses for FunTime, ReallyWorld and HolyWorld. From 180 RUB, loader in your cabinet right after payment.",
     uk: "Клієнт для Minecraft Fabric 1.21.11 від 180 ₽. Лоадер у кабінеті одразу після оплати.",
     pl: "Klient Minecraft Fabric 1.21.11 od 180 ₽. Loader w panelu zaraz po płatności.",
     tr: "Minecraft Fabric 1.21.11 istemcisi, 180 ₽'den. Loader ödemeden hemen sonra panelde."
@@ -28,7 +28,7 @@ const CONFIG = {
     primaryLight: "#FFFFFF",                  // Светлый акцент
     primaryDark:  "#FFFFFF",                  // Акцент при наведении
     secondary:    "#B4B7BF",                  // Вторичный серый
-    accent:       "#D4D6DC",                  // Подсветка мелких деталей
+    accent:       "#38BDF8",                  // Подсветка мелких деталей
     bg:           "#040405",                  // Чёрный фон под дымом
     bgCard:       "rgba(2, 2, 3, 0.52)",      // Тёмное матовое стекло под блюр
     bgCardHover:  "rgba(4, 4, 5, 0.64)",      // Фон карточек при наведении
@@ -75,20 +75,20 @@ const CONFIG = {
   // ─── ФУНКЦИИ (FEATURES) ──────────────────────────────────
   features: {
     ru: [
-      { title: "Интерфейс", desc: "Визуальные функции и настройка оформления." },
+      { title: "Интерфейс", desc: "Визуалы: TargetESP, ChinaHat, JumpCircles, трейлы. Тема и расположение худа настраиваются." },
       { title: "Настройки", desc: "Любую функцию можно настроить, есть конфиги." },
       { title: "Оптимизация", desc: "Стабильный FPS, в том числе на слабых ПК." },
       { title: "Обновления", desc: "Регулярно добавляем функции и исправления." },
       { title: "Поддержка", desc: "Отвечаем ПН–ПТ 9:00–00:00 МСК." },
-      { title: "Обход античитов", desc: "Работает на популярных серверах." }
+      { title: "Обход античитов", desc: "Обходы под FunTime, ReallyWorld, HolyWorld." }
     ],
     en: [
-      { title: "Interface", desc: "Visual features and appearance settings." },
+      { title: "Interface", desc: "Visuals: TargetESP, ChinaHat, JumpCircles, trails. HUD theme and layout are configurable." },
       { title: "Settings", desc: "Every feature is configurable, configs supported." },
       { title: "Optimization", desc: "Stable FPS, including on low-end PCs." },
       { title: "Updates", desc: "New features and fixes added regularly." },
       { title: "Support", desc: "We reply Mon–Fri 9:00–00:00 MSK." },
-      { title: "Anticheat bypass", desc: "Works on popular servers." }
+      { title: "Anticheat bypass", desc: "Bypasses for FunTime, ReallyWorld, HolyWorld." }
     ],
     uk: [
       { title: "Гарний інтерфейс",      desc: "Велика кількість візуальних функцій. Налаштуйте оформлення клієнта повністю під себе." },
