@@ -2805,7 +2805,9 @@ body{background:#09090b}
 .btn-primary:hover,.nav-buy:hover,.pay-btn-continue:hover,.hero-z-btn:hover{background:#fff!important;transform:translateY(-2px);box-shadow:0 10px 30px -10px rgba(255,255,255,.45)!important}
 
 /* бейджи / эйбрау */
-.section-eyebrow,.hero-eyebrow,.badge,.pricing-badge,.popular-badge{color:#E6E7EA!important;background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.14)!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.section-eyebrow{background:none!important;border:0!important;padding:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:#8B8B93!important}
+.section-eyebrow::before,.section-eyebrow::after{display:none!important}
+.hero-eyebrow,.badge,.pricing-badge,.popular-badge{color:#E6E7EA!important;background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.14)!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
 .hero-eyebrow-dot{background:#fff!important}
 
 /* ВСЕ карточки/блоки: блюр + ховер */
