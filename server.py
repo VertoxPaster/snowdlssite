@@ -274,7 +274,6 @@ _products_cache = {"t": 0, "data": None}
 _cosmetics_cache = {"t": 0, "data": None}
 
 
-
 def fetch_products():
     return [
         {"id": 1, "slug": "month",    "title": "SnowClient — 30 Дней",   "price": 180, "duration": 30},
@@ -299,6 +298,7 @@ def find_product(pid):
         if int(p.get("id") or 0) == num_id:
             return p
     return None
+
 
 def find_cosmetic(cid):
     try:
@@ -395,8 +395,6 @@ def add_balance(uid, amount, deposit=True):
     else:
         _db("UPDATE users SET balance=balance+? WHERE id=?", (amount, uid))
 
-
-# ---------------------------------------------------------------- LAUNCHER API (HWID BINDING)
 
 # ---------------------------------------------------------------- LAUNCHER API (HWID BINDING)
 
@@ -550,6 +548,7 @@ def launcher_web_session(h, body, user):
         **_client_hashes(),
     })
 
+
 _pub_stats = {"t": 0, "data": None}
 
 
@@ -603,6 +602,7 @@ def loader_download(h, body, user):
         "message": "Файл клиента ещё не загружен на сервер (добавьте static/SnowClient.exe или LOADER_URL)"
     }, 404)
 
+
 TURNSTILE_SECRET = os.environ.get("TURNSTILE_SECRET", "").strip()
 
 
@@ -627,6 +627,8 @@ def verify_turnstile(token: str, ip: str | None = None) -> bool:
     except Exception:
         traceback.print_exc()
         return False
+
+
 # ---------------------------------------------------------------- AUTH & SITE API
 
 @route("POST", "/api/auth/register")
@@ -634,7 +636,7 @@ def auth_register(h, body, user):
     username = str(body.get("username") or "").strip()
     email = str(body.get("email") or "").strip().lower()
     password = str(body.get("password") or "")
-ts_token = str(body.get("turnstileToken") or body.get("cf-turnstile-response") or "").strip()
+    ts_token = str(body.get("turnstileToken") or body.get("cf-turnstile-response") or "").strip()
     if not verify_turnstile(ts_token, h.client_ip()):
         return h.json_out({"message": "Проверка капчи не пройдена"}, 400)
     if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", username):
@@ -676,7 +678,6 @@ ts_token = str(body.get("turnstileToken") or body.get("cf-turnstile-response") o
 def auth_login(h, body, user):
     password = str(body.get("password") or "")
     ident = str(body.get("email") or "").strip()
-# Внутри auth_login (в самом начале, после чтения password/ident):
     ts_token = str(body.get("turnstileToken") or body.get("cf-turnstile-response") or "").strip()
     if not verify_turnstile(ts_token, h.client_ip()):
         return h.json_out({"message": "Проверка капчи не пройдена"}, 400)
@@ -1439,6 +1440,7 @@ def admin_users(h, body, user):
         })
     return h.json_out({"success": True, "data": out, "count": len(out)})
 
+
 @route("POST", "/api/admin/users/update")
 def admin_update(h, body, user):
     if not require_admin(user):
@@ -1526,6 +1528,8 @@ def admin_grant(h, body, user):
             )
         return h.json_out({"success": True, "message": "Косметика #%d выдана" % cid})
     return h.json_out({"message": "Нечего выдавать"}, 400)
+
+
 @route("GET", "/api/admin/users/subscriptions")
 def admin_user_subs(h, body, user):
     if not require_admin(user):
@@ -1616,6 +1620,7 @@ def admin_cos_delete(h, body, user):
     _db("DELETE FROM inventory WHERE user_id=? AND cosmetic_id=?", (uid, cid))
     audit(user, "delete_cosmetic", "user=%s cosmetic=%s" % (uid, cid))
     return h.json_out({"success": True, "message": "Косметика изъята"})
+
 
 @route("POST", "/api/admin/keys")
 def admin_keys(h, body, user):
@@ -1956,6 +1961,7 @@ def mfa_setup(h, body, user):
     uri = "otpauth://totp/Admin:%s?secret=%s&issuer=Admin&period=30&digits=6" % (user["username"], secret)
     h.json_out({"success": True, "secret": secret, "uri": uri})
 
+
 @route("POST", "/api/admin/2fa/enable")
 def mfa_enable(h, body, user):
     if _mfa_guard(h, user):
@@ -2150,12 +2156,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     STATIC_OK = ("/static/", "/uploads/local/", "/assets/", "/fonts/")
     STATIC_FILES = (
-    "/", "/index.html", "/admin.html", "/admin.js",
-    "/cabinet.html", "/cabinet.js", "/client-auth.js", "/smoke-shader.js",
-    "/terms.html", "/rules.html", "/privacy.html",
-    "/style.css", "/script.js", "/config.js",
-    "/favicon.ico", "/manifest.json", "/robots.txt",
-)
+        "/", "/index.html", "/admin.html", "/admin.js",
+        "/cabinet.html", "/cabinet.js", "/client-auth.js", "/smoke-shader.js",
+        "/terms.html", "/rules.html", "/privacy.html",
+        "/style.css", "/script.js", "/config.js",
+        "/favicon.ico", "/manifest.json", "/robots.txt",
+    )
 
     BLOCKED_EXT = (".exe", ".py", ".pyc", ".env", ".sql", ".db", ".sqlite", ".pem", ".key", ".log", ".bak", ".txt", ".md")
     STATIC_DIRS = ("static", "uploads/local", "assets", "fonts")
