@@ -35,7 +35,7 @@
   function frame(now) {
     var dt = Math.min(0.05, (now - last) / 1000); last = now;
     // нижняя граница картинки в координатах окна; ниже неё снег виден
-    var cut = topBg.getBoundingClientRect().bottom;
+    var cut = document.body.classList.contains('auth-open') ? 0 : topBg.getBoundingClientRect().bottom;
     if (cut >= H) { ctx.clearRect(0, 0, W, H); canvas.style.visibility = 'hidden'; requestAnimationFrame(frame); return; }
     canvas.style.visibility = 'visible';
     canvas.style.clipPath = 'inset(' + Math.max(0, Math.round(cut)) + 'px 0 0 0)';

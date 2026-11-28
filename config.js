@@ -51,6 +51,9 @@ const CONFIG = {
     anchors: ["#hero", "#features", "#video", "#pricing", "#support"]
   },
 
+  // ─── CLOUDFLARE TURNSTILE (публичный ключ; секретный — ТОЛЬКО на сервере) ───
+  turnstile: { siteKey: "0x4AAAAAAGXQ6_ivhJGBJSyT" },
+
   // ─── КОНТАКТЫ ────────────────────────────────────────────
   contact: {
     email:   "snowclient-support@proton.me",

@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadSession();
   loadPublicStats();
   handleAuthQuery();
+  handleAuthHash();
   try { const o = localStorage.getItem('snw_order'); if (o) watchPayment(o); } catch {}
 
   if (CONFIG.video.url) embedVideo(CONFIG.video.url);
@@ -753,6 +754,7 @@ function openModal(key) {
   if (!id) return;
   document.getElementById(id)?.classList.add('open');
   document.body.style.overflow = 'hidden';
+  document.body.classList.toggle('auth-open', key === 'auth');
 }
 
 function isModalOpen(key) {
@@ -764,6 +766,12 @@ function closeModal(key) {
   if (!id) return;
   document.getElementById(id)?.classList.remove('open');
   document.body.style.overflow = '';
+  if (key === 'auth') authPageClosed();
+}
+
+function authPageClosed() {
+  document.body.classList.remove('auth-open');
+  if (/^#(login|register)$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
 }
 
 function closeAllModals() {
@@ -771,6 +779,7 @@ function closeAllModals() {
     document.getElementById(id)?.classList.remove('open');
   });
   document.body.style.overflow = '';
+  authPageClosed();
 }
 
 function closeModalOutside(event, modalId) {
@@ -973,6 +982,100 @@ function heroRegister() {
   openAuth('register');
 }
 
+/* ════════════════════════════════════════
+   СТРАНИЦА АВТОРИЗАЦИИ: тексты, Turnstile, навигация
+════════════════════════════════════════ */
+const AP_TEXTS = {
+  ru: { eyebrowLogin:'Вход в SnowClient', eyebrowReg:'Присоединяйтесь к SnowClient',
+        titleLogin:'С возвращением.', titleReg:'Создайте аккаунт.',
+        user:'Имя пользователя', userPh:'Придумайте никнейм',
+        identPh:'Введите никнейм или email', emailPh:'Введите email',
+        passPh:'Введите пароль', pass2:'Подтвердите пароль', pass2Ph:'Повторите пароль',
+        cont:'Продолжить', toReg:'Нет аккаунта? Зарегистрироваться.', toLogin:'Уже есть аккаунт? Войти.',
+        mismatch:'Пароли не совпадают', captchaNeed:'Подтвердите, что вы не робот' },
+  en: { eyebrowLogin:'Sign in to SnowClient', eyebrowReg:'Join SnowClient',
+        titleLogin:'Welcome back.', titleReg:'Create your account.',
+        user:'Username', userPh:'Choose a username',
+        identPh:'Enter your username or email', emailPh:'Enter your email',
+        passPh:'Enter your password', pass2:'Confirm password', pass2Ph:'Repeat your password',
+        cont:'Continue', toReg:'No account? Sign up.', toLogin:'Already have an account? Sign in.',
+        mismatch:'Passwords do not match', captchaNeed:'Please verify you are human' },
+  uk: { eyebrowLogin:'Вхід у SnowClient', eyebrowReg:'Приєднуйтесь до SnowClient',
+        titleLogin:'З поверненням.', titleReg:'Створіть акаунт.',
+        user:'Ім’я користувача', userPh:'Придумайте нікнейм',
+        identPh:'Введіть нікнейм або email', emailPh:'Введіть email',
+        passPh:'Введіть пароль', pass2:'Підтвердіть пароль', pass2Ph:'Повторіть пароль',
+        cont:'Продовжити', toReg:'Немає акаунта? Зареєструватися.', toLogin:'Вже є акаунт? Увійти.',
+        mismatch:'Паролі не збігаються', captchaNeed:'Підтвердьте, що ви не робот' },
+  pl: { eyebrowLogin:'Zaloguj się do SnowClient', eyebrowReg:'Dołącz do SnowClient',
+        titleLogin:'Witaj ponownie.', titleReg:'Utwórz konto.',
+        user:'Nazwa użytkownika', userPh:'Wybierz nazwę użytkownika',
+        identPh:'Podaj nazwę użytkownika lub email', emailPh:'Podaj email',
+        passPh:'Podaj hasło', pass2:'Potwierdź hasło', pass2Ph:'Powtórz hasło',
+        cont:'Kontynuuj', toReg:'Nie masz konta? Zarejestruj się.', toLogin:'Masz już konto? Zaloguj się.',
+        mismatch:'Hasła nie są takie same', captchaNeed:'Potwierdź, że nie jesteś robotem' },
+  tr: { eyebrowLogin:'SnowClient’a giriş yap', eyebrowReg:'SnowClient’a katıl',
+        titleLogin:'Tekrar hoş geldin.', titleReg:'Hesabını oluştur.',
+        user:'Kullanıcı adı', userPh:'Bir kullanıcı adı seç',
+        identPh:'Kullanıcı adı veya e-posta', emailPh:'E-posta adresin',
+        passPh:'Şifreni gir', pass2:'Şifreyi onayla', pass2Ph:'Şifreyi tekrar gir',
+        cont:'Devam', toReg:'Hesabın yok mu? Kayıt ol.', toLogin:'Zaten hesabın var mı? Giriş yap.',
+        mismatch:'Şifreler eşleşmiyor', captchaNeed:'Lütfen robot olmadığını doğrula' }
+};
+function apt(k) { return (AP_TEXTS[currentLang] || AP_TEXTS.ru)[k]; }
+
+/* Cloudflare Turnstile: публичный ключ в config.js (CONFIG.turnstile.siteKey).
+   Секретный ключ на фронт НЕ кладём — он нужен только серверу для проверки токена. */
+let tsWidget = null, tsToken = '';
+function tsRequired() { return typeof CONFIG !== 'undefined' && !!(CONFIG.turnstile && CONFIG.turnstile.siteKey); }
+function updateSubmitState() {
+  const b = document.getElementById('authSubmit');
+  if (b) b.disabled = tsRequired() && !tsToken;
+}
+function initTurnstile() {
+  if (!tsRequired()) { updateSubmitState(); return; }
+  if (window.turnstile) { renderTurnstile(); return; }
+  if (document.getElementById('tsScript')) return;
+  const sc = document.createElement('script');
+  sc.id = 'tsScript'; sc.async = true; sc.defer = true;
+  sc.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+  sc.onload = renderTurnstile;
+  document.head.appendChild(sc);
+  updateSubmitState();
+}
+function renderTurnstile() {
+  if (tsWidget !== null || !window.turnstile) return;
+  const box = document.getElementById('tsBox'); if (!box) return;
+  tsWidget = turnstile.render(box, {
+    sitekey: CONFIG.turnstile.siteKey,
+    theme: 'dark',
+    size: 'flexible',
+    language: currentLang || 'auto',
+    callback: t => { tsToken = t; updateSubmitState(); clearAuthError(); },
+    'expired-callback': () => { tsToken = ''; updateSubmitState(); },
+    'error-callback':   () => { tsToken = ''; updateSubmitState(); }
+  });
+}
+function resetTurnstile() {
+  tsToken = '';
+  if (window.turnstile && tsWidget !== null) { try { turnstile.reset(tsWidget); } catch {} }
+  updateSubmitState();
+}
+
+/* страница входа открывается по #login / #register и закрывается по кнопке «назад» и ссылкам меню */
+function handleAuthHash() {
+  const m = location.hash.match(/^#(login|register)$/);
+  if (m && !isModalOpen('auth')) openAuth(m[1]);
+}
+addEventListener('popstate', () => {
+  const m = location.hash.match(/^#(login|register)$/);
+  if (m) { if (!isModalOpen('auth')) openAuth(m[1]); }
+  else if (isModalOpen('auth')) closeModal('auth');
+});
+document.addEventListener('click', e => {
+  if (isModalOpen('auth') && e.target.closest('.navbar a, .mobile-menu a')) closeModal('auth');
+});
+
 function onAuthClick() {
   if (currentUser) {
     location.href = '/cabinet';
@@ -986,6 +1089,8 @@ function openAuth(tab = 'login') {
   openModal('auth');
   switchAuthTab(tab, true);
   clearAuthError();
+  if (location.hash !== '#' + tab) history.pushState(null, '', location.pathname + location.search + '#' + tab);
+  initTurnstile();
   setTimeout(() => document.getElementById(authTab === 'register' ? 'authUsername' : 'authIdent')?.focus(), 350);
 }
 
@@ -1006,6 +1111,7 @@ function switchAuthTab(tab, instant = false) {
   }
   updateAuthTexts();
   clearAuthError();
+  if (document.body.classList.contains('auth-open')) history.replaceState(null, '', location.pathname + location.search + '#' + tab);
 }
 
 function updateAuthTexts() {
@@ -1023,6 +1129,21 @@ function updateAuthTexts() {
 
   const key = document.getElementById('cabKeyInput');
   if (key) key.placeholder = tt('cabKeyPh');
+
+  // страница авторизации
+  const setT = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setT('apEyebrow',  apt(reg ? 'eyebrowReg' : 'eyebrowLogin'));
+  setT('authZTitle', apt(reg ? 'titleReg'   : 'titleLogin'));
+  setT('apLblUser',  apt('user'));
+  setT('apLblPass2', apt('pass2'));
+  setT('apContinue', apt('cont'));
+  setT('apSwitch',   apt(reg ? 'toLogin' : 'toReg'));
+  const ph = (id, v) => { const el = document.getElementById(id); if (el) el.placeholder = v; };
+  ph('authUsername', apt('userPh'));
+  ph('authIdent',    apt(reg ? 'emailPh' : 'identPh'));
+  ph('authPassword', apt('passPh'));
+  ph('authPassword2', apt('pass2Ph'));
+  updateSubmitState();
 }
 
 function showAuthError(msg) {
@@ -1048,15 +1169,17 @@ async function submitAuth(e) {
 
   if (!ident || !pass || (reg && !uname)) return showAuthError(tt('authFill'));
   if (reg && (!/^[A-Za-z0-9_]{3,20}$/.test(uname) || pass.length < 6)) return showAuthError(tt('authShort'));
+  if (reg && pass !== (document.getElementById('authPassword2')?.value ?? pass)) return showAuthError(apt('mismatch'));
   if (reg && !document.getElementById('authAgree')?.checked) return showAuthError(tt('authAgreeNeed'));
+  if (tsRequired() && !tsToken) return showAuthError(apt('captchaNeed'));
 
   const submit = document.getElementById('authSubmit');
   authBusy = true; submit.classList.add('loading'); clearAuthError();
 
   try {
     const payload = reg
-      ? { username: uname, email: ident, password: pass, acceptTerms: true }
-      : { email: ident, password: pass };                // email принимает и email, и ник
+      ? { username: uname, email: ident, password: pass, acceptTerms: true, turnstileToken: tsToken }
+      : { email: ident, password: pass, turnstileToken: tsToken };   // email принимает и email, и ник
     const r = await api(reg ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body: payload, token: null });
 
     const token = r.token || r.data?.token;
@@ -1068,6 +1191,8 @@ async function submitAuth(e) {
     userBalance = user && typeof user.balance === 'number' ? user.balance : null;
 
     document.getElementById('authPassword').value = '';
+    const p2 = document.getElementById('authPassword2'); if (p2) p2.value = '';
+    resetTurnstile();
     closeModal('auth');
     renderAuthUI();
     showToast((reg ? tt('authRegistered') : tt('authWelcome')) + (currentUser?.username || ''), 'success');
@@ -1081,6 +1206,7 @@ async function submitAuth(e) {
     }
   } catch (err) {
     showAuthError(err.message);
+    resetTurnstile();      // токен одноразовый — после ошибки нужна новая проверка
   } finally {
     authBusy = false; submit.classList.remove('loading');
   }

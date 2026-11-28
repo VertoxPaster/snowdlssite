@@ -271,94 +271,61 @@
 </div>
 
 <!-- ═════ AUTH MODAL (ZENITH SPLIT + FULL COMPATIBILITY) ═════ -->
-<div class="modal-overlay" id="modalAuth" onclick="closeModalOutside(event,'modalAuth')">
-  <div class="modal glass auth-modal-zenith">
-    <button class="modal-close auth-z-close" type="button" onclick="closeModal('auth')" aria-label="Close">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
+<div class="modal-overlay auth-page" id="modalAuth">
+  <div class="ap-wrap">
 
-    <div class="auth-z-grid">
-      <div class="auth-z-left">
-        <div class="auth-z-brand">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
-            <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
-          </svg>
-        </div>
-
-        <!-- Обязательные вкладки для client-auth.js (оформлены как чистые пилюли) -->
-        <div class="auth-tabs auth-z-tabs" id="authTabs" role="tablist">
-          <span class="auth-tab-indicator" id="authIndicator"></span>
-          <button class="auth-tab active" id="tabLogin" role="tab" type="button" onclick="switchAuthTab('login')" data-i18n="authLogin">Вход</button>
-          <button class="auth-tab" id="tabRegister" role="tab" type="button" onclick="switchAuthTab('register')" data-i18n="authRegister">Регистрация</button>
-        </div>
-
-        <h3 class="auth-z-title" id="authZTitle">С возвращением</h3>
-        <p class="auth-sub auth-z-sub" id="authSub" data-i18n="authSubLogin">Войдите, чтобы продолжить.</p>
-
-        <form class="auth-form auth-z-form" id="authForm" onsubmit="submitAuth(event)" novalidate>
-          <div class="z-input-group field-register" id="fieldUsername">
-            <label for="authUsername" data-i18n="authUsername">Имя пользователя</label>
-            <div class="z-input-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <input type="text" id="authUsername" autocomplete="username" maxlength="20" placeholder="Введите никнейм" />
-            </div>
-          </div>
-
-          <div class="z-input-group" id="fieldIdent">
-            <label for="authIdent" id="authIdentLabel" data-i18n="authIdent">Имя пользователя или Email</label>
-            <div class="z-input-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <input type="text" id="authIdent" autocomplete="username" placeholder="Введите никнейм или Email" />
-            </div>
-          </div>
-
-          <div class="z-input-group">
-            <label for="authPassword" id="authPasswordLabel" data-i18n="authPassword">Пароль</label>
-            <div class="z-input-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
-            </div>
-          </div>
-
-          <label class="auth-agree field-register" id="fieldAgree">
-            <input type="checkbox" id="authAgree" />
-            <span><span data-i18n="authAgreePre">Я принимаю</span> <a href="/terms" target="_blank" rel="noopener" data-i18n="footerTerms">Условия использования</a></span>
-          </label>
-
-          <div class="auth-error" id="authError" role="alert"></div>
-
-          <button class="btn btn-primary auth-submit auth-z-submit" id="authSubmit" type="submit">
-            <span class="spinner"></span>
-            <span id="authSubmitLabel" data-i18n="authSubmitLogin">Войти</span>
-          </button>
-        </form>
-      </div>
-
-      <!-- Правая колонка: стеклянная 3D-иконка входа -->
-      <div class="auth-z-right" aria-hidden="true">
-        <div class="auth-z-glass-portal">
-          <svg viewBox="0 0 160 220" fill="none">
-            <defs>
-              <linearGradient id="glassStroke" x1="0" y1="0" x2="160" y2="220" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
-                <stop offset="35%" stop-color="#9CA3AF" stop-opacity="0.35"/>
-                <stop offset="70%" stop-color="#FFFFFF" stop-opacity="0.8"/>
-                <stop offset="100%" stop-color="#6B7280" stop-opacity="0.25"/>
-              </linearGradient>
-              <linearGradient id="glassFill" x1="20" y1="10" x2="140" y2="210" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.12"/>
-                <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.02"/>
-                <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.08"/>
-              </linearGradient>
-            </defs>
-            <rect x="44" y="14" width="102" height="192" rx="28" fill="url(#glassFill)" stroke="url(#glassStroke)" stroke-width="5"/>
-            <rect x="52" y="22" width="86" height="176" rx="21" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1.5"/>
-            <path d="M12 110H104M104 110L74 80M104 110L74 140" stroke="url(#glassStroke)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
-      </div>
+    <!-- вкладки нужны для client-auth.js — на странице скрыты -->
+    <div class="auth-tabs ap-hidden" id="authTabs" role="tablist">
+      <span class="auth-tab-indicator" id="authIndicator"></span>
+      <button class="auth-tab active" id="tabLogin" role="tab" type="button" onclick="switchAuthTab('login')">Вход</button>
+      <button class="auth-tab" id="tabRegister" role="tab" type="button" onclick="switchAuthTab('register')">Регистрация</button>
     </div>
+
+    <div class="ap-eyebrow"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8m0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5"/></svg><span id="apEyebrow">Вход в SnowClient</span></div>
+    <h1 class="ap-title" id="authZTitle">С возвращением.</h1>
+    <p class="ap-hidden" id="authSub"></p>
+
+    <form class="auth-form ap-form" id="authForm" onsubmit="submitAuth(event)" novalidate>
+
+      <div class="ap-field field-register" id="fieldUsername">
+        <label for="authUsername"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8m0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5"/></svg><span id="apLblUser">Имя пользователя</span></label>
+        <input type="text" id="authUsername" autocomplete="username" maxlength="20" placeholder="Придумайте никнейм" />
+      </div>
+
+      <div class="ap-field" id="fieldIdent">
+        <label for="authIdent"><svg class="ic-user-id" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8m0 2c-3.3 0-8 1.7-8 5v1h16v-1c0-3.3-4.7-5-8-5"/></svg><svg class="ic-mail" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2m0 4l-8 5l-8-5V6l8 5l8-5z"/></svg><span id="authIdentLabel">Никнейм или Email</span></label>
+        <input type="text" id="authIdent" autocomplete="username" placeholder="Введите никнейм или email" />
+      </div>
+
+      <div class="ap-field" id="fieldPassword">
+        <label for="authPassword"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2M9 6a3 3 0 0 1 6 0v2H9z"/></svg><span id="authPasswordLabel">Пароль</span></label>
+        <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+      </div>
+
+      <div class="ap-field field-register" id="fieldPassword2">
+        <label for="authPassword2"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2M9 6a3 3 0 0 1 6 0v2H9z"/></svg><span id="apLblPass2">Подтвердите пароль</span></label>
+        <input type="password" id="authPassword2" autocomplete="new-password" placeholder="Повторите пароль" />
+      </div>
+
+      <label class="auth-agree field-register" id="fieldAgree">
+        <input type="checkbox" id="authAgree" />
+        <span><span data-i18n="authAgreePre">Я принимаю</span> <a href="/terms" target="_blank" rel="noopener" data-i18n="footerTerms">Условия использования</a></span>
+      </label>
+
+      <!-- Cloudflare Turnstile -->
+      <div class="ap-ts" id="tsBox"></div>
+
+      <div class="auth-error" id="authError" role="alert"></div>
+
+      <div class="ap-divider"><span id="apContinue">Продолжить</span></div>
+
+      <button class="btn auth-submit ap-submit" id="authSubmit" type="submit">
+        <span class="spinner"></span>
+        <span id="authSubmitLabel" data-i18n="authSubmitLogin">Войти</span>
+      </button>
+    </form>
+
+    <button class="ap-switch" id="apSwitch" type="button" onclick="switchAuthTab(authTab==='register'?'login':'register')">Нет аккаунта? Зарегистрироваться.</button>
   </div>
 </div>
 
