@@ -47,76 +47,42 @@
       uniform float u_time;
       uniform vec2 u_mouse;
 
-      float hash(vec2 p) {
-        p = fract(p * vec2(123.34, 456.21));
-        p += dot(p, p + 45.32);
-        return fract(p.x * p.y);
+      float hash(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+      float noise(vec2 p){
+        vec2 i=floor(p),f=fract(p),u=f*f*(3.0-2.0*f);
+        return mix(mix(hash(i),hash(i+vec2(1,0)),u.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),u.x),u.y);
       }
-
-      float noise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        vec2 u = f * f * (3.0 - 2.0 * f);
-
-        float a = hash(i);
-        float b = hash(i + vec2(1.0, 0.0));
-        float c = hash(i + vec2(0.0, 1.0));
-        float d = hash(i + vec2(1.0, 1.0));
-
-        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+      float fbm(vec2 p){
+        float v=0.0,a=0.5;
+        mat2 r=mat2(0.8,-0.6,0.6,0.8);
+        for(int i=0;i<4;i++){v+=a*noise(p);p=r*p*2.0+vec2(1.7,9.2);a*=0.5;}
+        return v;
       }
-
-      float fbm(vec2 p) {
-        float value = 0.0;
-        float amp = 0.5;
-        mat2 rot = mat2(0.80, -0.60, 0.60, 0.80);
-        for (int i = 0; i < 5; i++) {
-          value += amp * noise(p);
-          p = rot * p * 2.03 + vec2(1.7, 9.2);
-          amp *= 0.5;
-        }
-        return value;
+      // высота "ткани": складки шёлка
+      float cloth(vec2 p,float t){
+        vec2 w=vec2(fbm(p*0.9+vec2(0.0,t*0.5)),fbm(p*0.9+vec2(5.2,1.3)-t*0.4));
+        p+=1.6*(w-0.5);
+        float h=sin(p.x*1.9+p.y*1.1+fbm(p*1.3+t*0.3)*4.0)*0.5+0.5;
+        h+=0.35*(sin(p.x*3.7-p.y*2.3+fbm(p*2.1)*5.0)*0.5+0.5);
+        return h/1.35;
       }
-
-      void main() {
-        vec2 uv = gl_FragCoord.xy / u_res.xy;
-        float aspect = u_res.x / max(u_res.y, 1.0);
-        vec2 p = vec2((uv.x - 0.5) * aspect, uv.y - 0.5) * 2.1;
-
-        p += (u_mouse - 0.5) * 0.22;
-
-        float t = u_time * 0.14;
-
-        vec2 q = vec2(
-          fbm(p + vec2(0.0, 0.0) + t * 0.45),
-          fbm(p + vec2(5.2, 1.3) - t * 0.35)
-        );
-
-        vec2 r = vec2(
-          fbm(p + 3.1 * q + vec2(1.7, 9.2) + t * 0.55),
-          fbm(p + 3.1 * q + vec2(8.3, 2.8) + t * 0.42)
-        );
-
-        float f = fbm(p + 2.4 * r);
-
-        vec3 colVoid    = vec3(0.012, 0.012, 0.013);
-        vec3 colDark    = vec3(0.036, 0.036, 0.040);
-        vec3 colMid     = vec3(0.075, 0.075, 0.082);
-        vec3 colAccent  = vec3(0.150, 0.150, 0.162);
-
-        float smokeMask = smoothstep(0.18, 0.88, f);
-        float wispMask  = smoothstep(0.45, 0.96, length(r) * 0.68);
-
-        vec3 color = mix(colVoid, colDark, smokeMask);
-        color = mix(color, colMid, smokeMask * wispMask * 0.85);
-        color += colAccent * pow(clamp(f * wispMask, 0.0, 1.0), 2.6) * 0.55;
-        color *= 2.7;
-
-        // Лёгкая виньетка по краям экрана
-        float dist = length((uv - 0.5) * vec2(1.15, 1.05));
-        float vignette = smoothstep(0.95, 0.22, dist);
-        color *= mix(0.45, 1.0, vignette);
-
+      void main(){
+        vec2 uv=gl_FragCoord.xy/u_res.xy;
+        float asp=u_res.x/max(u_res.y,1.0);
+        vec2 p=vec2((uv.x-0.5)*asp,uv.y-0.5)*2.2;
+        p+=(u_mouse-0.5)*0.2;
+        float t=u_time*0.08;
+        float e=0.02;
+        float h=cloth(p,t);
+        float hx=cloth(p+vec2(e,0.0),t);
+        float hy=cloth(p+vec2(0.0,e),t);
+        vec3 n=normalize(vec3((h-hx)/e*0.35,(h-hy)/e*0.35,1.0));
+        vec3 L=normalize(vec3(-0.5,0.6,0.7));
+        float diff=clamp(dot(n,L),0.0,1.0);
+        float spec=pow(clamp(dot(reflect(-L,n),vec3(0,0,1)),0.0,1.0),18.0);
+        vec3 color=vec3(0.010)+vec3(0.060)*diff*diff+vec3(0.55,0.55,0.58)*spec*0.28;
+        float d=length((uv-0.5)*vec2(1.1,1.0));
+        color*=mix(0.35,1.0,smoothstep(0.95,0.15,d));
         gl_FragColor = vec4(color, 1.0);
       }
     `;

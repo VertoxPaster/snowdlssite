@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupMagnetic();
   setupCardTilt();
   loadSession();
+  loadPublicStats();
   handleAuthQuery();
   try { const o = localStorage.getItem('snw_order'); if (o) watchPayment(o); } catch {}
 
@@ -36,6 +37,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Escape') closeAllModals();
   });
 });
+
+async function loadPublicStats() {
+  const el = document.getElementById('zLaunches');
+  const el2 = document.getElementById('zUsers');
+  if (!el && !el2) return;
+  try {
+    const r = await fetch('/api/public/stats', { headers: { 'Accept': 'application/json' } });
+    const d = (await r.json()).data || {};
+    const fmt = n => (Number(n) || 0).toLocaleString('ru-RU');
+    if (el)  el.textContent  = fmt(d.launches);
+    if (el2) el2.textContent = fmt(d.users);
+  } catch {}
+}
 
 function handleAuthQuery() {
   try {

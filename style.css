@@ -2471,163 +2471,326 @@ section { padding: 72px 0; }
   }
 }
 /* ============================================================
-   ZENITH UNIFIED DARK THEME & GLASS CARDS
+   ZENITH THEME OVERRIDES (NAV · HERO · AUTH SPLIT · CABINET)
    ============================================================ */
-:root {
-  --bg:           #050507;
-  --bg-card:      rgba(12, 13, 16, 0.64);
-  --bg-card-hover:rgba(19, 20, 25, 0.78);
-  --primary:      #E4E5E9;
-  --primary-light:#FFFFFF;
-  --primary-dark: #D2D4DC;
-  --on-primary:   #08090B;
-  --text:         #F2F3F5;
-  --text-muted:   #8A8D96;
-  --border:       rgba(255, 255, 255, 0.07);
-  --border-light: rgba(255, 255, 255, 0.13);
-  --blur:         blur(28px) saturate(115%);
-  --blur-heavy:   blur(38px) saturate(120%);
-}
 
-body {
-  background: var(--bg);
-  color: var(--text);
-}
-
-/* Единый фон с шейдером дыма */
-.bg-base {
-  background: radial-gradient(ellipse 85% 60% at 50% 0%, #14151a 0%, #050507 75%);
-}
-.smoke-canvas {
-  opacity: 0.85;
-  mix-blend-mode: screen;
-}
-
-/* Единая карточка Zenith для всего сайта и кабинета */
-.z-card,
-.glass,
-.feature-card,
-.pricing-card,
-.support-card,
-.cab-card,
-.cab-stat,
-.cab-sidebar,
-.cab-quick-btn,
-.z-stat-card,
-.hero-video-frame,
-.video-embed-wrap,
-.legal-card {
-  background: var(--bg-card) !important;
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  border: 1px solid var(--border) !important;
-  border-radius: 16px !important;
-  box-shadow:
-    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
-    0 18px 44px rgba(0, 0, 0, 0.55) !important;
-  background-image: none !important;
-  transition: transform 0.25s var(--ease-out), border-color 0.25s ease, background-color 0.25s ease !important;
-}
-
-.z-card:hover,
-.feature-card.visible:hover,
-.pricing-card.visible:hover,
-.support-card.visible:hover,
-.cab-quick-btn:hover,
-.z-stat-card:hover {
-  background: var(--bg-card-hover) !important;
-  border-color: var(--border-light) !important;
-  transform: translateY(-3px) !important;
-}
-
-/* Выделенный тариф в стиле Zenith (без синего оттенка) */
-.pricing-card.popular {
-  background: rgba(20, 21, 27, 0.76) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
-}
-.pricing-badge {
-  background: #FFFFFF;
-  color: #08090B;
-}
-
-/* Унифицированные пилюли и кнопки */
-.btn,
-.nav-buy,
-.lang-btn,
-.nav-auth {
+.nav-buy-pill {
   border-radius: 99px !important;
-}
-
-.btn-primary,
-.nav-buy {
-  background: #FFFFFF !important;
-  color: #08090B !important;
-  border: 1px solid #FFFFFF !important;
+  padding: 0 20px;
   font-weight: 700;
 }
-.btn-primary:hover,
-.nav-buy:hover {
-  background: #E2E4E9 !important;
-  border-color: #E2E4E9 !important;
-}
 
-.btn-outline {
-  background: rgba(255, 255, 255, 0.04) !important;
-  color: var(--text) !important;
-  border: 1px solid var(--border-light) !important;
-}
-.btn-outline::before {
-  display: none !important;
-}
-.btn-outline:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(255, 255, 255, 0.24) !important;
-  color: #FFFFFF !important;
-}
-
-/* Сетка карточек обзора в кабинете (3 колонки) */
-.cab-stats-3 {
+.nav-pill-zenith {
   display: grid;
-  grid-template-columns: repeat(3, 1fr) !important;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-
-/* Инпуты и табы в едином тёмном стиле */
-.field input,
-.cab-key-input,
-.pay-promo-input {
-  background: rgba(6, 7, 9, 0.72) !important;
-  border: 1px solid var(--border-light) !important;
-  border-radius: 11px !important;
-  color: var(--text) !important;
-}
-.field input:focus,
-.cab-key-input:focus,
-.pay-promo-input:focus {
-  border-color: rgba(255, 255, 255, 0.34) !important;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06) !important;
-}
-
-.cab-nav-btn {
+  grid-template-columns: 1fr auto 1fr;
   border-radius: 99px !important;
+  padding: 0 12px 0 22px;
+}
+.nav-pill-zenith .nav-center { justify-self: start; }
+.nav-pill-zenith .nav-logo-center { justify-self: center; }
+.nav-pill-zenith .nav-right { justify-self: end; }
+
+/* Центрированный Hero в стиле Zenith */
+.hero-zenith {
+  min-height: 78vh;
+  padding: 150px 24px 60px;
+  text-align: center;
+}
+.hero-z-container {
+  max-width: 780px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hero-z-h1 {
+  font-size: clamp(2.6rem, 5.5vw, 4.4rem) !important;
+  letter-spacing: -2px !important;
+  line-height: 1.08 !important;
+  margin-bottom: 16px !important;
+}
+.hero-z-sub {
+  max-width: 560px !important;
+  margin: 0 auto 30px !important;
+  text-align: center;
+}
+.hero-z-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.hero-z-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.hero-z-avatars span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid #09090b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  margin-left: -9px;
+}
+.hero-z-avatars span:first-child { margin-left: 0; }
+.hero-z-btn {
+  border-radius: 99px !important;
+  padding: 13px 28px !important;
+  font-weight: 700 !important;
+}
+.hero-z-users {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.hero-z-perks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Блок телеметрии (Активность сети) */
+.z-stats-top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.z-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 14px;
+}
+.z-stat-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.z-stat-ico svg { width: 18px; height: 18px; }
+.z-stat-lbl {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.z-stat-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.4px;
+}
+
+/* Двухколоночное окно авторизации */
+.auth-modal-zenith {
+  max-width: 880px !important;
+  width: 94%;
+  padding: 0;
+  border-radius: 20px !important;
+  background: rgba(8, 8, 10, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.auth-z-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 10;
+  border-radius: 50%;
+}
+.auth-z-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  min-height: 490px;
+}
+.auth-z-left {
+  padding: 36px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.auth-z-brand {
+  width: 32px;
+  height: 32px;
+  color: #fff;
+  margin-bottom: 14px;
+}
+.auth-z-brand svg { width: 100%; height: 100%; }
+.auth-z-tabs {
+  margin-bottom: 16px;
+  border-radius: 99px;
+}
+.auth-z-tabs .auth-tab-indicator { border-radius: 99px; }
+.auth-z-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.4px;
+  margin-bottom: 4px;
+}
+.auth-z-sub {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+.auth-z-form { gap: 13px; }
+.z-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.z-input-group label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.z-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.z-input-wrap svg {
+  position: absolute;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.z-input-wrap input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.035);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.18s, background 0.18s;
+}
+.z-input-wrap input:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+.z-input-group.field-register {
+  max-height: 0;
+  opacity: 0;
+  margin-bottom: -13px;
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-height 0.35s var(--spring), opacity 0.25s, margin 0.35s var(--spring);
+}
+.auth-form.is-register .z-input-group.field-register {
+  max-height: 82px;
+  opacity: 1;
+  margin-bottom: 0;
+  pointer-events: auto;
+}
+.auth-z-submit {
+  width: 100%;
+  height: 44px;
+  border-radius: 99px !important;
+  background: #ffffff;
+  color: #09090b;
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+.auth-z-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.04) 0%, transparent 70%);
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+.auth-z-glass-portal {
+  width: 165px;
+  height: 225px;
+  filter: drop-shadow(0 20px 45px rgba(0, 0, 0, 0.8));
+}
+
+/* Сайдбар кабинета в стиле Zenith */
+.cab-side-user {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 6px 8px 4px;
+}
+.cab-side-user .cab-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 0.95rem;
+}
+.cab-side-user-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.cab-side-username {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cab-nav-btn.active {
-  background: #FFFFFF !important;
-  color: #08090B !important;
+  background: #ffffff !important;
+  color: #09090b !important;
+  border-color: #ffffff !important;
+  border-radius: 99px !important;
+}
+.cab-nav-btn.active::before { display: none; }
+.cab-nav-btn.active .cab-nav-key {
+  color: #09090b;
+  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.06);
 }
 
-.pay-modal,
-.auth-modal,
-.modal {
-  background: rgba(10, 11, 14, 0.94) !important;
-  border: 1px solid var(--border-light) !important;
-  border-radius: 20px !important;
+@media (max-width: 860px) {
+  .nav-pill-zenith { display: flex; }
+  .z-stats-top { grid-template-columns: 1fr; }
 }
-
-@media (max-width: 900px) {
-  .cab-stats-3 {
-    grid-template-columns: 1fr !important;
-  }
+@media (max-width: 760px) {
+  .auth-z-grid { grid-template-columns: 1fr; }
+  .auth-z-right { display: none; }
+  .auth-z-left { padding: 28px 22px; }
 }
 .pay-method-ico img{width:28px;height:28px;display:block}
+
+/* ===== ZENITH CARDS v2: единые тёмные цвета ===== */
+:root{--z-bg:#09090b;--z-card:#0b0b0d;--z-line:rgba(255,255,255,.08);--z-line-h:rgba(255,255,255,.16)}
+.glass,.cab-stat,.z-stat-card,.price-card,.feature-card,.cab-card,.card{
+  background:var(--z-card)!important;
+  border:1px solid var(--z-line)!important;
+  border-radius:24px!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+.glass:hover,.cab-stat:hover,.z-stat-card:hover{border-color:var(--z-line-h)!important}
+.z-stat-num,.cab-stat-value{font-size:2.2rem;font-weight:800;letter-spacing:-.02em;color:#fff}
+.cab-stats-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:860px){.cab-stats-3{grid-template-columns:1fr}}
+body{background:var(--z-bg)}
+.smoke-canvas{opacity:1;mix-blend-mode:normal}

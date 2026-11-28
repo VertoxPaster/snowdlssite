@@ -200,7 +200,7 @@ def has_active_subscription(u):
 
 
 def user_json(u):
-    name = u["username"]
+    name = u["username"]  # отображаемое имя всегда равно нику и не редактируется
     hwid_val = (u.get("hwid") or "").strip()
     return {
         "id": u["id"],
@@ -218,9 +218,9 @@ def user_json(u):
         "bio": u["bio"],
         "hwid": hwid_val,
         "hwid_bound_at": u.get("hwid_bound_at") or "",
+        "has_subscription": has_active_subscription(u),
         "launch_count": int(u.get("launch_count") or 0),
         "last_launch_at": u.get("last_launch_at") or "",
-        "has_subscription": has_active_subscription(u),
         "is_blocked": False,
         "isBlocked": False,
         "is_verified": False,
@@ -230,19 +230,11 @@ def user_json(u):
     }
 
 
-# 3. Добавь функцию инкремента запусков при успешной авторизации лаунчера:
-def _record_launch(user_id: int) -> int:
-    row = _db1(
-        "UPDATE users SET launch_count = COALESCE(launch_count, 0) + 1, last_launch_at = ? "
-        "WHERE id = ? RETURNING launch_count",
-        (now_iso(), user_id),
-    )
-    return int((row or {}).get("launch_count") or 0)
-
 def public_user_json(u):
     d = user_json(u)
     for k in ("email", "balance", "totalDeposits", "totalPurchases", "hwid", "hwid_bound_at",
-              "ref_code", "ref_uses", "ref_earned", "has_subscription", "is_blocked", "isBlocked"):
+              "ref_code", "ref_uses", "ref_earned", "has_subscription", "is_blocked", "isBlocked",
+              "launch_count", "last_launch_at"):
         d.pop(k, None)
     return d
 
@@ -441,6 +433,11 @@ def _bind_or_verify_hwid(user_id: int, hwid: str) -> bool:
     return bool(saved_hwid) and secrets.compare_digest(saved_hwid, hwid)
 
 
+def note_launch(user_id: int) -> None:
+    """+1 к счётчику запусков клиента (вызывается только после успешной проверки логина, подписки и HWID)."""
+    _db("UPDATE users SET launch_count=launch_count+1, last_launch_at=? WHERE id=?", (now_iso(), user_id))
+
+
 def make_key_envelope(hwid: str, nonce_hex: str) -> str:
     master_key = bytes.fromhex(os.environ["MOD_MASTER_KEY"])
     transport_key = bytes.fromhex(os.environ["DLL_TRANSPORT_KEY"])
@@ -504,13 +501,11 @@ def launcher_auth(h, body, user):
             403,
         )
 
-    launches = _record_launch(u["id"])
-
+    note_launch(u["id"])
     return h.json_out({
         "status": "ok",
         "username": u["username"],
         "role": u["role"],
-        "launch_count": launches,
         "key_envelope": make_key_envelope(hwid, nonce),
         **_client_hashes(),
     })
@@ -546,16 +541,27 @@ def launcher_web_session(h, body, user):
     if not _bind_or_verify_hwid(u["id"], hwid):
         return h.json_out({"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"}, 403)
 
-    launches = _record_launch(u["id"])
-
+    note_launch(u["id"])
     return h.json_out({
         "status": "ok",
         "username": u["username"],
         "role": u["role"],
-        "launch_count": launches,
         "key_envelope": make_key_envelope(hwid, nonce),
         **_client_hashes(),
     })
+
+_pub_stats = {"t": 0, "data": None}
+
+
+@route("GET", "/api/public/stats")
+def public_stats(h, body, user):
+    now = time.time()
+    if not _pub_stats["data"] or now - _pub_stats["t"] > 30:
+        r = _db1("SELECT COUNT(*) AS users, COALESCE(SUM(launch_count),0) AS launches FROM users")
+        _pub_stats["data"] = {"users": int(r["users"]), "launches": int(r["launches"])}
+        _pub_stats["t"] = now
+    return h.json_out({"success": True, "data": _pub_stats["data"]})
+
 
 @route("GET", "/api/loader/download")
 def loader_download(h, body, user):
@@ -1774,12 +1780,12 @@ def migrate():
         "backup_codes TEXT NOT NULL DEFAULT ''",
         "hwid TEXT NOT NULL DEFAULT ''",
         "hwid_bound_at TEXT NOT NULL DEFAULT ''",
-        "launch_count INTEGER NOT NULL DEFAULT 0",
-        "last_launch_at TEXT NOT NULL DEFAULT ''",
         "referred_by INTEGER",
         "ref_paid INTEGER NOT NULL DEFAULT 0",
         "terms_accepted_at TEXT NOT NULL DEFAULT ''",
         "terms_version TEXT NOT NULL DEFAULT ''",
+        "launch_count INTEGER NOT NULL DEFAULT 0",
+        "last_launch_at TEXT NOT NULL DEFAULT ''",
     ):
         _run("ALTER TABLE users ADD COLUMN IF NOT EXISTS " + col, (), False)
     _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS mfa_at DOUBLE PRECISION NOT NULL DEFAULT 0", (), False)
