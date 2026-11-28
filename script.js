@@ -933,23 +933,28 @@ function renderAuthUI() {
    HERO-КНОПКИ И СЕКЦИЯ «ИНТЕРФЕЙС» (тексты по языкам)
 ════════════════════════════════════════ */
 const SHOWCASE_TEXTS = {
-  ru: { prices:'Посмотреть цены', reg:'Создать аккаунт',
+  ru: { home:'Главная', pricing:'Тарифы', cabinet:'Кабинет', docs:'Документы', rights:'Все права защищены',
+        prices:'Посмотреть цены', reg:'Создать аккаунт',
         eyebrow:'Подробнее об интерфейсе', title:'Настройки там, где они нужны.',
         sub:'Листайте модули, меняйте параметры и переключайтесь между режимами отображения в одном меню.',
         updates:'Обновления и превью' },
-  en: { prices:'View pricing', reg:'Create account',
+  en: { home:'Home', pricing:'Pricing', cabinet:'Cabinet', docs:'Documents', rights:'All Rights Reserved',
+        prices:'View pricing', reg:'Create account',
         eyebrow:'A closer look at the interface', title:'Settings where you need them.',
         sub:'Browse modules, change settings and switch between display options in one menu.',
         updates:'Updates and previews' },
-  uk: { prices:'Переглянути ціни', reg:'Створити акаунт',
+  uk: { home:'Головна', pricing:'Тарифи', cabinet:'Кабінет', docs:'Документи', rights:'Усі права захищені',
+        prices:'Переглянути ціни', reg:'Створити акаунт',
         eyebrow:'Детальніше про інтерфейс', title:'Налаштування там, де вони потрібні.',
         sub:'Гортайте модулі, змінюйте параметри та перемикайтеся між режимами відображення в одному меню.',
         updates:'Оновлення та прев’ю' },
-  pl: { prices:'Zobacz ceny', reg:'Utwórz konto',
+  pl: { home:'Główna', pricing:'Cennik', cabinet:'Panel', docs:'Dokumenty', rights:'Wszelkie prawa zastrzeżone',
+        prices:'Zobacz ceny', reg:'Utwórz konto',
         eyebrow:'Bliższe spojrzenie na interfejs', title:'Ustawienia tam, gdzie ich potrzebujesz.',
         sub:'Przeglądaj moduły, zmieniaj ustawienia i przełączaj tryby wyświetlania w jednym menu.',
         updates:'Aktualizacje i podglądy' },
-  tr: { prices:'Fiyatları gör', reg:'Hesap oluştur',
+  tr: { home:'Ana sayfa', pricing:'Fiyatlar', cabinet:'Panel', docs:'Belgeler', rights:'Tüm hakları saklıdır',
+        prices:'Fiyatları gör', reg:'Hesap oluştur',
         eyebrow:'Arayüze yakından bakış', title:'Ayarlar tam ihtiyacınız olan yerde.',
         sub:'Modüllere göz atın, ayarları değiştirin ve görünüm seçenekleri arasında tek menüden geçiş yapın.',
         updates:'Güncellemeler ve önizlemeler' }
@@ -960,6 +965,8 @@ function applyHeroShowcaseTexts(lang) {
   set('heroBtnPrices', x.prices);   set('heroBtnRegister', x.reg);
   set('scEyebrow', x.eyebrow);      set('scTitle', x.title);
   set('scSub', x.sub);              set('scUpdates', x.updates);
+  set('ftHome', x.home); set('ftPricing', x.pricing); set('ftCabinet', x.cabinet); set('ftDocs', x.docs);
+  set('ftRights', x.rights); set('ftCopy', '© ' + new Date().getFullYear() + ' SnowClient');
 }
 function heroRegister() {
   if (typeof currentUser !== 'undefined' && currentUser) { location.href = '/cabinet'; return; }
