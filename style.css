@@ -2911,3 +2911,12 @@ body{background:#09090b}
   .showcase-text,.showcase-laptop{grid-column:1}
   .showcase-laptop{justify-self:center;margin-left:0;width:min(560px,94%)}
 }
+
+/* дракон слева от заголовка */
+.showcase-dragon{grid-column:1;grid-row:1;justify-self:end;margin-right:-30px;width:min(calc(100% + 30px),520px);position:relative;z-index:1;align-self:center}
+.showcase-dragon img{display:block;width:100%;height:auto;filter:drop-shadow(0 30px 40px rgba(0,0,0,.5))}
+.showcase-text{grid-row:1}.showcase-laptop{grid-row:1}
+@media(max-width:1100px){
+  .showcase-dragon{grid-column:1;grid-row:auto;justify-self:center;margin-right:0;width:min(300px,70%);order:-1}
+  .showcase-text,.showcase-laptop{grid-row:auto}
+}
