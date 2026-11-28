@@ -8,6 +8,7 @@ const TABS = {
   stats: 'Обзор',
   users: 'Пользователи',
   keys: 'Ключи',
+  promos: 'Промокоды',
   purchases: 'Подписки и покупки',
   audit: 'Журнал',
   sec: 'Безопасность'
@@ -192,7 +193,7 @@ function panel() {
   $$('nav [data-t]').forEach(b => b.onclick = () => { tab = b.dataset.t; panel(); });
   $('#out').onclick = () => logout();
   startTimers();
-  if (n === navId) ({ stats, users: usersTab, keys: keysTab, purchases, audit, sec })[tab]();
+  if (n === navId) ({ stats, users: usersTab, keys: keysTab, promos: promosTab, purchases, audit, sec })[tab]();
 }
 
 async function stats() {
@@ -540,6 +541,63 @@ async function purchases() {
     if (await act(() => api('/api/admin/subscriptions/update', 'POST', { id, action: 'delete' }), 'Подписка удалена', b)) {
       all = all.filter(x => x.id != id);
       draw();
+    }
+  });
+  draw();
+}
+
+async function promosTab() {
+  const n = navId, r = await act(() => api('/api/admin/promos')); if (!r || n !== navId) return;
+  let all = r.data;
+  $('#m').innerHTML = `<h2>Промокоды</h2>
+  <div class="box stack" style="margin-bottom:16px">
+    <b>Создать промокод</b>
+    <div class="row">
+      <label>Код (пусто — сгенерировать)<input id="pc" maxlength="32" autocomplete="off"></label>
+      <label>Скидка, %<input id="pd" type="number" min="1" max="99" value="10"></label>
+      <label>Лимит использований (0 = ∞)<input id="pm" type="number" min="0" value="0"></label>
+      <label>Срок, дней (0 = бессрочно)<input id="pe" type="number" min="0" value="0"></label>
+    </div>
+    <div><button id="pg">Создать</button></div>
+    <span class="mut">Использование засчитывается после реальной оплаты. Один пользователь — один раз.</span>
+  </div>
+  <div class="bar"><input id="q" placeholder="Поиск по коду" autocomplete="off"><button class="g s" id="rf">↻</button></div>
+  <div id="t"></div>`;
+  const now = new Date().toISOString();
+  const state = p => !p.active ? '<span class="tag ban">выключен</span>'
+    : p.expires_at && p.expires_at < now ? '<span class="tag warn">истёк</span>'
+    : p.max_uses && p.uses >= p.max_uses ? '<span class="tag warn">исчерпан</span>'
+    : '<span class="tag ok">активен</span>';
+  const g = grid($('#t'), [
+    { h: 'Код', v: p => `<code>${esc(p.code)}</code>`, s: p => p.code },
+    { h: 'Скидка', v: p => '-' + p.discount + '%', s: p => +p.discount },
+    { h: 'Использован', v: p => `<b>${p.uses}</b>${p.max_uses ? ' / ' + p.max_uses : ' / ∞'}`, s: p => +p.uses },
+    { h: 'Принёс', v: p => money(p.revenue), s: p => +p.revenue },
+    { h: 'Статус', v: state },
+    { h: 'Истекает', v: p => p.expires_at ? fmt(p.expires_at) : 'бессрочно', s: p => String(p.expires_at ?? '9999') },
+    { h: 'Создан', v: p => fmt(p.created_at), s: p => String(p.created_at) },
+    { h: '', v: p => `<button class="g s" data-who="${esc(p.code)}">Кто использовал</button> <button class="g s" data-tg="${esc(p.code)}">${p.active ? 'Выкл' : 'Вкл'}</button> <button class="d s" data-rm="${esc(p.code)}">Удалить</button>` }
+  ], { sort: 6, dir: -1 });
+  const draw = () => { const q = $('#q').value.trim().toLowerCase(); g.set(all.filter(p => !q || p.code.toLowerCase().includes(q))); };
+  const load = async () => { const j = await act(() => api('/api/admin/promos')); if (!j || n !== navId) return; all = j.data; draw(); };
+  $('#q').oninput = debounce(draw); $('#rf').onclick = load;
+  $('#pg').onclick = async e => {
+    const j = await act(() => api('/api/admin/promos', 'POST', { code: $('#pc').value.trim(), discount: +$('#pd').value, maxUses: +$('#pm').value, days: +$('#pe').value }), null, e.target);
+    if (j) { $('#pc').value = ''; toast('Создан: ' + j.code); copy(j.code, 'Код ' + j.code + ' скопирован'); load(); }
+  };
+  $('#t').addEventListener('click', async e => {
+    const who = e.target.closest('[data-who]'), tg = e.target.closest('[data-tg]'), rm = e.target.closest('[data-rm]');
+    if (tg && await act(() => api('/api/admin/promos/update', 'POST', { code: tg.dataset.tg, action: 'toggle' }), null, tg)) load();
+    if (rm && confirm('Удалить промокод ' + rm.dataset.rm + '?') && await act(() => api('/api/admin/promos/update', 'POST', { code: rm.dataset.rm, action: 'delete' }), 'Удалён', rm)) load();
+    if (who) {
+      const j = await act(() => api('/api/admin/promos/uses', 'POST', { code: who.dataset.who }), null, who); if (!j) return;
+      const d = $('#dlg');
+      d.innerHTML = `<h2>Использования: ${esc(who.dataset.who)}</h2>
+        <div class="tw"><table><tr><th>Пользователь</th><th>Скидка</th><th>Оплачено</th><th>Когда</th></tr>${
+          j.data.map(u => `<tr><td><b>${esc(u.username || '#' + u.user_id)}</b></td><td>-${u.discount}%</td><td>${money(u.amount)}</td><td>${fmt(u.used_at)}</td></tr>`).join('')
+          || '<tr><td colspan="4" class="mut">Пока никто не использовал</td></tr>'}</table></div>
+        <div style="margin-top:12px"><button class="g" id="dx">Закрыть</button></div>`;
+      $('#dx', d).onclick = () => d.close(); d.showModal();
     }
   });
   draw();

@@ -191,17 +191,12 @@ const CONFIG = {
       lifetime:  "https://funpay.com/lots/offer?id=78533148"
     },
     methods: [
-      { id: "sbp",        name: "СБП",         badge: "RUB",   badgeColor: "#2563eb" },
-      { id: "mir",        name: "МИР",         badge: "RUB",   badgeColor: "#2563eb" },
-      { id: "visa_rub",   name: "VISA",        badge: "RUB",   badgeColor: "#2563eb" },
-      { id: "mc_rub",     name: "Mastercard",  badge: "RUB",   badgeColor: "#2563eb" },
-      { id: "yoomoney",   name: "ЮMoney",      badge: "RUB",   badgeColor: "#2563eb" },
-      { id: "cryptobot",  name: "Crypto Bot",  badge: "USDT",  badgeColor: "#16a34a" },
-      { id: "usdt_trc20", name: "USDT TRC20",  badge: "TRC20", badgeColor: "#dc2626" },
-      { id: "usdt_ton",   name: "USDT TON",    badge: "TON",   badgeColor: "#0284c7" },
-      { id: "btc",        name: "Bitcoin",     badge: "BTC",   badgeColor: "#16a34a" },
-      { id: "ltc",        name: "Litecoin",    badge: "LTC",   badgeColor: "#2563eb" },
-      { id: "eth",        name: "Ethereum",    badge: "ETH",   badgeColor: "#dc2626" }
+      { id: "cryptobot", name: "Crypto Bot", badge: "ВСЕ МОНЕТЫ", badgeColor: "#2563eb" },
+      { id: "usdt",      name: "USDT",       badge: "USDT",      badgeColor: "#16a34a" },
+      { id: "ton",       name: "TON",        badge: "TON",       badgeColor: "#0284c7" },
+      { id: "btc",       name: "Bitcoin",    badge: "BTC",       badgeColor: "#f59e0b" },
+      { id: "eth",       name: "Ethereum",   badge: "ETH",       badgeColor: "#6366f1" },
+      { id: "ltc",       name: "Litecoin",   badge: "LTC",       badgeColor: "#64748b" }
     ],
     usePopup: false,
     popupContact: "https://t.me/Snowdls"

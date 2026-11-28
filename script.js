@@ -26,9 +26,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTilt();
   setupMagnetic();
   setupCardTilt();
-  prefillReferral();
   loadSession();
   handleAuthQuery();
+  try { const o = localStorage.getItem('snw_order'); if (o) watchPayment(o); } catch {}
 
   if (CONFIG.video.url) embedVideo(CONFIG.video.url);
 
@@ -457,22 +457,19 @@ function buildPricing() {
    ПОКУПКА — МОДАЛЬНОЕ ОКНО ВЫБОРА ОПЛАТЫ
 ════════════════════════════════════════ */
 let selectedPayPlanId   = 'month';
-let selectedPayMethodId = 'sbp';
+let selectedPayMethodId = 'cryptobot';
 let payPromoDiscount    = 0;
 let payAppliedPromo     = '';
 
+const CI = n => `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${n}.svg`;
+const coin = (n, label) => `<img src="${CI(n)}" width="28" height="28" alt="${label}" loading="lazy" onerror="this.replaceWith(document.createTextNode('${label}'))">`;
 const PAY_ICONS = {
-  sbp: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M5 4l7 4v8l-7 4V4z" fill="#5B57A2"/><path d="M12 8l7-4v8l-7 4V8z" fill="#D90751"/><path d="M5 12l7-4 7 4-7 4-7-4z" fill="#FAB718"/></svg>`,
-  mir: `<span style="font-weight:900;font-size:1rem;letter-spacing:.04em;color:#22c55e;">МИР</span>`,
-  visa_rub: `<span style="font-weight:900;font-style:italic;font-size:1.05rem;color:#eab308;">VISA</span>`,
-  mc_rub: `<svg width="32" height="20" viewBox="0 0 32 20"><circle cx="12" cy="10" r="8" fill="#eb001b"/><circle cx="20" cy="10" r="8" fill="#f79e1b" fill-opacity=".85"/></svg>`,
-  yoomoney: `<span style="font-weight:900;font-size:.92rem;color:#a855f7;">ЮMoney</span>`,
-  cryptobot: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="6" fill="#38bdf8"/><path d="M7 9l5 7 5-7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-  usdt_trc20: `<span style="font-weight:900;font-size:.95rem;color:#26a17b;">₮ TRC20</span>`,
-  usdt_ton: `<span style="font-weight:900;font-size:.95rem;color:#38bdf8;">₮ TON</span>`,
-  btc: `<span style="font-weight:900;font-size:.95rem;color:#f59e0b;">₿ BTC</span>`,
-  ltc: `<span style="font-weight:900;font-size:.95rem;color:#94a3b8;">Ł LTC</span>`,
-  eth: `<span style="font-weight:900;font-size:.95rem;color:#818cf8;">Ξ ETH</span>`
+  cryptobot: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="6" fill="#38bdf8"/><path d="M7 9l5 7 5-7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  usdt: coin('usdt', 'USDT'),
+  btc:  coin('btc', 'BTC'),
+  eth:  coin('eth', 'ETH'),
+  ltc:  coin('ltc', 'LTC'),
+  ton:  `<svg width="28" height="28" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="#0098EA"/><path d="M37.6 15.6H18.4c-3.5 0-5.7 3.8-4 6.9l11.8 20.5a2.3 2.3 0 004 0l11.8-20.5c1.8-3.1-.4-6.9-3.9-6.9zM25.6 36.4L18.9 22.8c-.4-.7.1-1.6.9-1.6h5.8v15.2zm11.5-13.6l-6.7 13.6V21.2h5.8c.8 0 1.3.9.9 1.6z" fill="#fff"/></svg>`
 };
 
 function handleBuy(planId) {
@@ -484,7 +481,7 @@ function openPaymentModal(planId = 'month') {
   selectedPayPlanId = plans.some(p => p.id === planId) ? planId : (plans[0]?.id || 'month');
   const methods = CONFIG.payment?.methods || [];
   if (!methods.some(m => m.id === selectedPayMethodId)) {
-    selectedPayMethodId = methods[0]?.id || 'sbp';
+    selectedPayMethodId = methods[0]?.id || 'cryptobot';
   }
   payPromoDiscount = 0;
   payAppliedPromo = '';
@@ -605,7 +602,10 @@ async function submitPayment() {
       }
     });
     if (r.payUrl) {
-      location.href = r.payUrl;
+      closeModal('payment');
+      showToast('Счёт создан. Оплатите в Crypto Bot — подписка выдастся автоматически', 'info');
+      watchPayment(r.orderId);
+      if (!window.open(r.payUrl, '_blank', 'noopener')) location.href = r.payUrl;
       return;
     }
     showToast(r.message || 'Счёт сформирован', 'success');
@@ -616,6 +616,28 @@ async function submitPayment() {
   } finally {
     btn.classList.remove('loading');
   }
+}
+
+function watchPayment(orderId) {
+  if (!orderId) return;
+  try { localStorage.setItem('snw_order', orderId); } catch {}
+  let tries = 0;
+  const t = setInterval(async () => {
+    if (++tries > 180) { clearInterval(t); return; }          // ~12 минут
+    try {
+      const r = await api('/api/payments/' + orderId);
+      if (r.paid) {
+        clearInterval(t);
+        try { localStorage.removeItem('snw_order'); } catch {}
+        showToast('Оплата получена! Подписка активирована', 'success');
+        setTimeout(() => location.reload(), 1200);
+      } else if (r.status === 'expired') {
+        clearInterval(t);
+        try { localStorage.removeItem('snw_order'); } catch {}
+        showToast('Счёт истёк', 'error');
+      }
+    } catch {}
+  }, 4000);
 }
 
 /* ════════════════════════════════════════
@@ -957,7 +979,6 @@ async function submitAuth(e) {
   const ident = document.getElementById('authIdent').value.trim();
   const pass  = document.getElementById('authPassword').value;
   const uname = document.getElementById('authUsername').value.trim();
-  const ref   = document.getElementById('authReferral').value.trim();
 
   if (!ident || !pass || (reg && !uname)) return showAuthError(tt('authFill'));
   if (reg && (!/^[A-Za-z0-9_]{3,20}$/.test(uname) || pass.length < 6)) return showAuthError(tt('authShort'));
@@ -968,7 +989,7 @@ async function submitAuth(e) {
 
   try {
     const payload = reg
-      ? { username: uname, email: ident, password: pass, acceptTerms: true, ...(ref ? { referralCode: ref } : {}) }
+      ? { username: uname, email: ident, password: pass, acceptTerms: true }
       : { email: ident, password: pass };                // email принимает и email, и ник
     const r = await api(reg ? '/api/auth/register' : '/api/auth/login', { method: 'POST', body: payload, token: null });
 
@@ -999,13 +1020,6 @@ async function submitAuth(e) {
   }
 }
 
-function prefillReferral() {
-  try {
-    const ref = new URLSearchParams(location.search).get('ref');
-    if (ref) document.getElementById('authReferral').value = ref;
-  } catch {}
-}
-
 /* ── Личный кабинет ── */
 function roleLabel(role) {
   return ({ admin: tt('roleAdmin'), moderator: tt('roleModerator'), beta_tester: tt('roleBeta') })[role] || tt('roleUser');
@@ -1030,7 +1044,6 @@ function renderCabinet() {
   const role = document.getElementById('cabRole');
   role.textContent = roleLabel(u.role);
   role.classList.toggle('admin', u.role === 'admin');
-  document.getElementById('cabRef').textContent = u.ref_code || '—';
   document.getElementById('cabAdminBtn').hidden = u.role !== 'admin';
   document.getElementById('cabAdminBtn').href   = CONFIG.auth?.adminUrl || '/admin';
   renderCabinetBalance();
@@ -1107,15 +1120,6 @@ async function logout() {
   closeModal('cabinet');
   renderAuthUI();
   showToast(tt('authLoggedOut'), 'info');
-}
-
-function copyRefCode() {
-  const code = currentUser?.ref_code;
-  if (!code) return;
-  (navigator.clipboard?.writeText(code) || Promise.reject()).then(
-    () => showToast(tt('cabCopied'), 'success'),
-    () => {}
-  );
 }
 
 /* ════════════════════════════════════════

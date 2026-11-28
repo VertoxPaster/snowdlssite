@@ -18,6 +18,8 @@ import psycopg2.pool
 import sys
 import traceback
 import time
+import urllib.request
+import urllib.parse
 from urllib.parse import urlsplit, unquote
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -220,9 +222,6 @@ def user_json(u):
         "isBlocked": False,
         "is_verified": False,
         "created_at": u["created_at"],
-        "ref_code": u["ref_code"],
-        "ref_uses": u["ref_uses"],
-        "ref_earned": u["ref_earned"],
         "presence": {"status": "online", "mode": "online", "online": True},
         "friendship_status": None,
     }
@@ -344,12 +343,6 @@ def grant_product(user_id, product, source):
         " VALUES(?,?,?,?,?,?,?)",
         (user_id, int((product or {}).get("id") or 0), title, price, source, now_iso(), expires),
     )
-    if source in ("buy", "key", "pay"):
-        r = _db1("UPDATE users SET ref_paid=1 WHERE id=? AND ref_paid=0 AND referred_by IS NOT NULL"
-                 " RETURNING referred_by", (user_id,))
-        if r:
-            _db("UPDATE users SET balance=balance+25, ref_uses=ref_uses+1, ref_earned=ref_earned+25 WHERE id=?",
-                (r["referred_by"],))
     role = (product or {}).get("grant_role")
     if role in ("beta_tester", "moderator"):
         _db("UPDATE users SET role=? WHERE id=?", (role, user_id))
@@ -615,21 +608,14 @@ def auth_register(h, body, user):
     is_boot = bool(boot_u and boot_e and username.lower() == boot_u and email == boot_e
                    and not _db1("SELECT 1 FROM users WHERE role='admin'"))
     role = "admin" if is_boot else "user"
-    ref_code = "SNW" + secrets.token_hex(4).upper()
     try:
         uid = _db1(
-            "INSERT INTO users(username,email,pass_hash,role,ref_code,created_at,terms_accepted_at,terms_version)"
-            " VALUES(?,?,?,?,?,?,?,?) RETURNING id",
-            (username, email, hash_password(password), role, ref_code, now_iso(), now_iso(), TERMS_VERSION),
+            "INSERT INTO users(username,email,pass_hash,role,created_at,terms_accepted_at,terms_version)"
+            " VALUES(?,?,?,?,?,?,?) RETURNING id",
+            (username, email, hash_password(password), role, now_iso(), now_iso(), TERMS_VERSION),
         )["id"]
     except psycopg2.errors.UniqueViolation:
         return h.json_out({"message": "Пользователь с таким ником или email уже существует"}, 400)
-    # Бонус рефереру начисляется только после первой реальной покупки приглашённого (см. grant_product)
-    ref = str(body.get("referralCode") or "").strip()[:32]
-    if ref:
-        referrer = _db1("SELECT id FROM users WHERE ref_code=?", (ref,))
-        if referrer and referrer["id"] != uid:
-            _db("UPDATE users SET referred_by=? WHERE id=?", (referrer["id"], uid))
     token = secrets.token_hex(32)
     _db("INSERT INTO tokens(token,user_id,created_at) VALUES(?,?,?)", (_th(token), uid, now_iso()))
     u = get_user_by_id(uid)
@@ -1053,34 +1039,6 @@ def friends_reject(h, mo, body, user):
     return h.json_out({"success": True})
 
 
-@route("GET", "/api/referrals/codes")
-def referrals_codes(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    code = user["ref_code"] or ("SNW" + secrets.token_hex(4).upper())
-    if not user["ref_code"]:
-        _db("UPDATE users SET ref_code=? WHERE id=?", (code, user["id"]))
-    item = {
-        "id": user["id"],
-        "code": code,
-        "uses": user["ref_uses"],
-        "earned": user["ref_earned"],
-        "url": "%s/?ref=%s" % (SITE_URL, code),
-        "status": "active",
-        "created_at": user["created_at"],
-    }
-    return h.json_out(
-        {
-            "success": True,
-            "data": [item],
-            "totalEarned": user["ref_earned"],
-            "totalUses": user["ref_uses"],
-            "earned": user["ref_earned"],
-            "uses": user["ref_uses"],
-        }
-    )
-
-
 def _has_paid(uid):
     return bool(_db1("SELECT 1 FROM purchases WHERE user_id=? AND source IN ('buy','key','pay') LIMIT 1", (uid,)))
 
@@ -1174,44 +1132,146 @@ def creator_packs(h, body, user):
     return h.json_out({"success": True, "hasPacks": False, "data": {"hasPacks": False}})
 
 
+CRYPTO_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "").strip()
+CRYPTO_API = os.environ.get("CRYPTOBOT_API", "https://pay.crypt.bot/api").rstrip("/")
+CRYPTO_ASSETS = {
+    "cryptobot": "USDT,TON,BTC,ETH,LTC,TRX,USDC",
+    "usdt": "USDT", "ton": "TON", "btc": "BTC", "eth": "ETH",
+    "ltc": "LTC", "trx": "TRX", "usdc": "USDC",
+}
+
+
+def crypto_call(method, params=None, post=False):
+    url = CRYPTO_API + "/" + method
+    data = None
+    if post:
+        data = json.dumps(params or {}).encode()
+    elif params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, data=data, headers={
+        "Crypto-Pay-API-Token": CRYPTO_TOKEN, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        j = json.loads(r.read().decode())
+    if not j.get("ok"):
+        raise RuntimeError("cryptobot: %s" % j.get("error"))
+    return j["result"]
+
+
+def promo_lookup(code, uid=None):
+    code = str(code or "").strip().upper()[:32]
+    if not code:
+        return None, None
+    p = _db1("SELECT * FROM promocodes WHERE code=?", (code,))
+    if not p or not p["active"]:
+        return None, "Промокод не найден"
+    if p["expires_at"] and p["expires_at"] < now_iso():
+        return None, "Срок действия промокода истёк"
+    if p["max_uses"] and p["uses"] >= p["max_uses"]:
+        return None, "Промокод закончился"
+    if uid and _db1("SELECT 1 FROM promo_uses WHERE code=? AND user_id=?", (code, uid)):
+        return None, "Вы уже использовали этот промокод"
+    return p, None
+
+
+def settle_payment(order_id):
+    """Идемпотентно: подписка выдаётся ровно один раз, даже если статус опрашивают параллельно."""
+    row = _db1("UPDATE payments SET status='paid', paid_at=? WHERE order_id=? AND status='pending' RETURNING *",
+               (now_iso(), order_id))
+    if not row:
+        return False
+    try:
+        prod = dict(find_product(row["product_id"]) or {"id": row["product_id"], "title": "Подписка SnowClient", "duration": None})
+        prod["price"] = row["amount"]
+        grant_product(row["user_id"], prod, "pay")
+    except Exception:
+        _db("UPDATE payments SET status='pending', paid_at=NULL WHERE order_id=?", (order_id,))
+        raise
+    if row["promo"]:
+        d = _db1("SELECT discount FROM promocodes WHERE code=?", (row["promo"],))
+        _db("UPDATE promocodes SET uses=uses+1 WHERE code=?", (row["promo"],))
+        _db("INSERT INTO promo_uses(code,user_id,order_id,discount,amount,used_at) VALUES(?,?,?,?,?,?)",
+            (row["promo"], row["user_id"], order_id, int(d["discount"]) if d else 0, row["amount"], now_iso()))
+    return True
+
+
 @route("POST", "/api/payments/create")
 def payments_create(h, body, user):
     if not require(user):
         return h.json_out({"message": "Сначала войдите в аккаунт"}, 401)
-
-    pid = body.get("planId") or body.get("productId")
-    method = str(body.get("method") or "sbp").strip()[:32]
-    prod = find_product(pid)
+    if not CRYPTO_TOKEN:
+        return h.json_out({"message": "Оплата криптой временно недоступна. Используйте FunPay"}, 400)
+    k = "pay:%s" % user["id"]
+    if throttled(k, 10, 600):
+        return h.json_out({"message": "Слишком много попыток, подождите немного"}, 429)
+    note_fail(k)
+    prod = find_product(body.get("planId") or body.get("productId"))
     if not prod:
         return h.json_out({"message": "Тариф не найден"}, 400)
-
-    amount = float(prod.get("price") or 0)
+    assets = CRYPTO_ASSETS.get(str(body.get("method") or "cryptobot").strip().lower())
+    if not assets:
+        return h.json_out({"message": "Способ оплаты недоступен"}, 400)
+    price = float(prod.get("price") or 0)
+    promo_code, discount = None, 0
+    if str(body.get("promoCode") or "").strip():
+        p, err = promo_lookup(body.get("promoCode"), user["id"])
+        if not p:
+            return h.json_out({"message": err or "Промокод не найден"}, 400)
+        promo_code, discount = p["code"], int(p["discount"])
+    amount = max(1, int(price * (100 - discount) / 100 + 0.5)) if discount else int(price)
     order_id = "SNW-" + secrets.token_hex(6).upper()
+    params = {
+        "currency_type": "fiat", "fiat": "RUB", "amount": str(amount),
+        "accepted_assets": assets, "description": prod["title"][:200],
+        "payload": order_id, "expires_in": 3600, "allow_comments": False,
+    }
+    if SITE_URL:
+        params.update({"paid_btn_name": "callback", "paid_btn_url": SITE_URL + "/cabinet"})
+    try:
+        inv = crypto_call("createInvoice", params, post=True)
+    except Exception:
+        traceback.print_exc()
+        return h.json_out({"message": "Не удалось создать счёт, попробуйте позже или купите через FunPay"}, 502)
+    _db("INSERT INTO payments(order_id,user_id,product_id,amount,promo,invoice_id,created_at) VALUES(?,?,?,?,?,?,?)",
+        (order_id, user["id"], int(prod["id"]), amount, promo_code, inv["invoice_id"], now_iso()))
+    return h.json_out({"success": True, "orderId": order_id, "amount": amount,
+                       "payUrl": inv.get("bot_invoice_url") or inv.get("pay_url")})
 
-    # Сюда подставляется генерация ссылки на оплату выбранного агрегатора (AAIO / FreeKassa / AnyPay)
-    # Например: pay_url = build_aaio_url(order_id, amount, method, user["id"], prod["id"])
-    pay_url = os.environ.get("PAYMENT_GATEWAY_URL", "").strip()
-    if not pay_url:
-        return h.json_out({
-            "message": "Прямой шлюз ещё подключается. Используйте кнопку «Купить через FunPay» ниже"
-        }, 400)
 
-    return h.json_out({
-        "success": True,
-        "orderId": order_id,
-        "payUrl": pay_url,
-    })
-
-@proute("GET", r"^/api/payments/")
+@proute("GET", r"^/api/payments/([A-Za-z0-9-]{1,40})$")
 def payments_status(h, mo, body, user):
     if not require(user):
         return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "status": "pending", "paid": False, "data": {"status": "pending"}})
+    row = _db1("SELECT * FROM payments WHERE order_id=? AND user_id=?", (mo.group(1), user["id"]))
+    if not row:
+        return h.json_out({"message": "Заказ не найден"}, 404)
+    status = row["status"]
+    if status == "pending":
+        try:
+            res = crypto_call("getInvoices", {"invoice_ids": str(row["invoice_id"])})
+            items = res.get("items", []) if isinstance(res, dict) else res
+            st = items[0]["status"] if items else "active"
+            if st == "paid":
+                settle_payment(row["order_id"])
+                status = "paid"
+            elif st == "expired":
+                _db("UPDATE payments SET status='expired' WHERE order_id=? AND status='pending'", (row["order_id"],))
+                status = "expired"
+        except Exception:
+            traceback.print_exc()
+    return h.json_out({"success": True, "status": status, "paid": status == "paid"})
 
 
 @route("POST", "/api/orders/check-promo")
 def check_promo(h, body, user):
-    return h.json_out({"success": True, "valid": False, "discount": 0, "data": {"valid": False, "discount": 0}})
+    k = "promo:" + h.client_ip()
+    if throttled(k, 30, 600):
+        return h.json_out({"message": "Слишком много попыток"}, 429)
+    p, err = promo_lookup(body.get("code"), user["id"] if user else None)
+    if not p:
+        note_fail(k)
+        return h.json_out({"success": True, "valid": False, "discount": 0, "message": err or "Промокод не найден"})
+    d = int(p["discount"])
+    return h.json_out({"success": True, "valid": True, "discount": d, "data": {"valid": True, "discount": d}})
 
 
 @route("GET", "/api/users/products")
@@ -1304,9 +1364,6 @@ def admin_users(h, body, user):
             "balance": r["balance"],
             "total_deposits": r["total_deposits"],
             "total_purchases": r["total_purchases"],
-            "ref_code": r["ref_code"],
-            "ref_uses": r["ref_uses"],
-            "ref_earned": r["ref_earned"],
             "hwid": r.get("hwid") or "",
             "hwid_bound_at": r.get("hwid_bound_at") or "",
             "created_at": r["created_at"],
@@ -1556,6 +1613,66 @@ def admin_user_delete(h, body, user):
     return h.json_out({"success": True})
 
 
+@route("GET", "/api/admin/promos")
+def admin_promos(h, body, user):
+    if not require_admin(user):
+        return h.json_out({"message": "Доступ только для админа"}, 403)
+    rows = _db("SELECT p.*, COALESCE((SELECT SUM(amount) FROM promo_uses WHERE code=p.code),0) AS revenue"
+               " FROM promocodes p ORDER BY created_at DESC")
+    return h.json_out({"success": True, "data": [dict(r) for r in rows]})
+
+
+@route("POST", "/api/admin/promos")
+def admin_promo_create(h, body, user):
+    if not require_admin(user):
+        return h.json_out({"message": "Доступ только для админа"}, 403)
+    code = str(body.get("code") or "").strip().upper()
+    if not code:
+        code = "SNOW" + secrets.token_hex(3).upper()
+    if not re.fullmatch(r"[A-Z0-9_-]{3,32}", code):
+        return h.json_out({"message": "Код: 3–32 символа, A-Z, 0-9, «_» и «-»"}, 400)
+    try:
+        disc = int(body.get("discount") or 0)
+        max_uses = max(0, int(body.get("maxUses") or 0))
+        days = max(0, int(body.get("days") or 0))
+    except (TypeError, ValueError):
+        return h.json_out({"message": "Некорректные числа"}, 400)
+    if not 1 <= disc <= 99:
+        return h.json_out({"message": "Скидка: от 1 до 99%"}, 400)
+    exp = (time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() + days * 86400)) + ".000Z") if days else None
+    if _db1("SELECT 1 FROM promocodes WHERE code=?", (code,)):
+        return h.json_out({"message": "Такой промокод уже есть"}, 400)
+    _db("INSERT INTO promocodes(code,discount,max_uses,expires_at,created_at) VALUES(?,?,?,?,?)",
+        (code, disc, max_uses, exp, now_iso()))
+    audit(user, "create_promo", "%s -%s%% max=%s days=%s" % (code, disc, max_uses, days))
+    return h.json_out({"success": True, "code": code})
+
+
+@route("POST", "/api/admin/promos/update")
+def admin_promo_update(h, body, user):
+    if not require_admin(user):
+        return h.json_out({"message": "Доступ только для админа"}, 403)
+    code = str(body.get("code") or "").strip().upper()
+    act = body.get("action")
+    if act == "toggle":
+        _db("UPDATE promocodes SET active = 1 - active WHERE code=?", (code,))
+    elif act == "delete":
+        _db("DELETE FROM promocodes WHERE code=?", (code,))
+    else:
+        return h.json_out({"message": "Неизвестное действие"}, 400)
+    audit(user, "promo_" + act, code)
+    return h.json_out({"success": True})
+
+
+@route("POST", "/api/admin/promos/uses")
+def admin_promo_uses(h, body, user):
+    if not require_admin(user):
+        return h.json_out({"message": "Доступ только для админа"}, 403)
+    rows = _db("SELECT pu.*, u.username FROM promo_uses pu LEFT JOIN users u ON u.id=pu.user_id"
+               " WHERE pu.code=? ORDER BY pu.id DESC LIMIT 300", (str(body.get("code") or "").strip().upper(),))
+    return h.json_out({"success": True, "data": [dict(r) for r in rows]})
+
+
 @route("GET", "/api/admin/stats")
 def admin_stats(h, body, user):
     if not require_admin(user):
@@ -1683,6 +1800,18 @@ def migrate():
         " AND is_nullable = 'NO' AND column_name NOT IN ('key', 'product_id', 'created_at')"
     ):
         _run("ALTER TABLE keys ALTER COLUMN %s DROP NOT NULL" % r["column_name"], (), False)
+    _run("""CREATE TABLE IF NOT EXISTS payments(
+        order_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
+        amount DOUBLE PRECISION NOT NULL, promo TEXT, invoice_id BIGINT,
+        status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, paid_at TEXT)""", (), False)
+    _run("""CREATE TABLE IF NOT EXISTS promocodes(
+        code TEXT PRIMARY KEY, discount INTEGER NOT NULL, max_uses INTEGER NOT NULL DEFAULT 0,
+        uses INTEGER NOT NULL DEFAULT 0, expires_at TEXT, active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL)""", (), False)
+    _run("""CREATE TABLE IF NOT EXISTS promo_uses(
+        id SERIAL PRIMARY KEY, code TEXT NOT NULL, user_id INTEGER NOT NULL, order_id TEXT,
+        discount INTEGER NOT NULL DEFAULT 0, amount DOUBLE PRECISION NOT NULL DEFAULT 0, used_at TEXT NOT NULL)""", (), False)
+
 
 def audit(admin, action, detail=""):
     _db(

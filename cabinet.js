@@ -166,7 +166,6 @@ function renderProfile() {
   subPill.className = 'cab-sub-pill ' + (hasSub ? 'active' : 'inactive');
 
   document.getElementById('cabBalance').textContent = fmtMoney(userBalance);
-  document.getElementById('cabRef').textContent = u.ref_code || '—';
 
   const adminBtn = document.getElementById('cabAdminBtn');
   if (adminBtn) {
@@ -510,18 +509,6 @@ async function changePassword(e) {
   }
 }
 
-function copyRefCode() {
-  const code = currentUser?.ref_code;
-  if (!code) return;
-
-  const done = () => showToast(tt('cabCopied'), 'success');
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(code).then(done).catch(() => fallbackCopy(code, done));
-  } else {
-    fallbackCopy(code, done);
-  }
-}
-
 function fallbackCopy(text, onSuccess) {
   try {
     const ta = document.createElement('textarea');
@@ -618,3 +605,208 @@ function showToast(msg, type = 'success') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove('show'), 3500);
 }
+
+/* ═════ ОПЛАТА (модальное окно в кабинете) ═════ */
+(function () {
+  window.openModal = window.openModal || function (key) {
+    const el = document.getElementById({ payment: 'modalPayment' }[key]); if (!el) return;
+    el.classList.add('open'); document.body.style.overflow = 'hidden';
+  };
+  window.closeModal = window.closeModal || function (key) {
+    document.getElementById({ payment: 'modalPayment' }[key])?.classList.remove('open'); document.body.style.overflow = '';
+  };
+  window.closeModalOutside = window.closeModalOutside || function (ev, id) {
+    if (ev.target.id !== id) return; document.getElementById(id)?.classList.remove('open'); document.body.style.overflow = '';
+  };
+let selectedPayPlanId   = 'month';
+let selectedPayMethodId = 'cryptobot';
+let payPromoDiscount    = 0;
+let payAppliedPromo     = '';
+
+const CI = n => `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${n}.svg`;
+const coin = (n, label) => `<img src="${CI(n)}" width="28" height="28" alt="${label}" loading="lazy" onerror="this.replaceWith(document.createTextNode('${label}'))">`;
+const PAY_ICONS = {
+  cryptobot: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="6" fill="#38bdf8"/><path d="M7 9l5 7 5-7" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  usdt: coin('usdt', 'USDT'),
+  btc:  coin('btc', 'BTC'),
+  eth:  coin('eth', 'ETH'),
+  ltc:  coin('ltc', 'LTC'),
+  ton:  `<svg width="28" height="28" viewBox="0 0 56 56"><circle cx="28" cy="28" r="28" fill="#0098EA"/><path d="M37.6 15.6H18.4c-3.5 0-5.7 3.8-4 6.9l11.8 20.5a2.3 2.3 0 004 0l11.8-20.5c1.8-3.1-.4-6.9-3.9-6.9zM25.6 36.4L18.9 22.8c-.4-.7.1-1.6.9-1.6h5.8v15.2zm11.5-13.6l-6.7 13.6V21.2h5.8c.8 0 1.3.9.9 1.6z" fill="#fff"/></svg>`
+};
+
+function handleBuy(planId) {
+  openPaymentModal(planId || 'month');
+}
+
+function openPaymentModal(planId = 'month') {
+  const plans = CONFIG.pricing?.plans || [];
+  selectedPayPlanId = plans.some(p => p.id === planId) ? planId : (plans[0]?.id || 'month');
+  const methods = CONFIG.payment?.methods || [];
+  if (!methods.some(m => m.id === selectedPayMethodId)) {
+    selectedPayMethodId = methods[0]?.id || 'cryptobot';
+  }
+  payPromoDiscount = 0;
+  payAppliedPromo = '';
+  const promoInput = document.getElementById('payPromoInput');
+  if (promoInput) promoInput.value = '';
+
+  renderPaymentModal();
+  openModal('payment');
+}
+
+function selectPayMethod(methodId) {
+  selectedPayMethodId = methodId;
+  renderPaymentModal();
+}
+
+function selectPayPlan(planId) {
+  selectedPayPlanId = planId;
+  renderPaymentModal();
+}
+
+function renderPaymentModal() {
+  const methodsGrid = document.getElementById('payMethodsGrid');
+  const plansTabs   = document.getElementById('payPlansTabs');
+  const titleEl     = document.getElementById('paySummaryTitle');
+  const priceEl     = document.getElementById('payTotalPrice');
+  const oldPriceEl  = document.getElementById('payTotalOld');
+  const funpayBtn   = document.getElementById('payFunpayBtn');
+  if (!methodsGrid || !plansTabs) return;
+
+  const methods = CONFIG.payment?.methods || [];
+  methodsGrid.innerHTML = methods.map(m => `
+    <button type="button" class="pay-method-card ${m.id === selectedPayMethodId ? 'active' : ''}" onclick="selectPayMethod('${m.id}')">
+      <span class="pay-method-badge" style="background:${m.badgeColor || '#2563eb'}">${esc(m.badge)}</span>
+      <span class="pay-method-ico">${PAY_ICONS[m.id] || '💳'}</span>
+      <span class="pay-method-name">${esc(m.name)}</span>
+    </button>
+  `).join('');
+
+  const plans = CONFIG.pricing?.plans || [];
+  const cur   = CONFIG.pricing?.currency || '₽';
+  plansTabs.innerHTML = plans.map(p => {
+    const dur = p.duration[currentLang] || p.duration.ru;
+    return `
+      <button type="button" class="pay-plan-tab ${p.id === selectedPayPlanId ? 'active' : ''}" onclick="selectPayPlan('${p.id}')">
+        ${esc(dur)}
+      </button>
+    `;
+  }).join('');
+
+  const plan = plans.find(p => p.id === selectedPayPlanId) || plans[0];
+  if (plan) {
+    const dur = plan.duration[currentLang] || plan.duration.ru;
+    const basePrice = Number(plan.price) || 0;
+    const finalPrice = payPromoDiscount > 0
+      ? Math.max(1, Math.round(basePrice * (1 - payPromoDiscount / 100)))
+      : basePrice;
+
+    if (titleEl) titleEl.textContent = `Покупка «${CONFIG.clientName} — ${dur}»`;
+    if (priceEl) priceEl.textContent = `${finalPrice} ${cur}`;
+    if (oldPriceEl) {
+      oldPriceEl.hidden = payPromoDiscount <= 0;
+      oldPriceEl.textContent = `${basePrice} ${cur}`;
+    }
+  }
+
+  if (funpayBtn) {
+    funpayBtn.href = CONFIG.payment?.redirectUrls?.[selectedPayPlanId]
+      || CONFIG.payment?.funpayUrl
+      || 'https://funpay.com/lots/offer?id=78533148';
+  }
+}
+
+async function applyPayPromo() {
+  const input = document.getElementById('payPromoInput');
+  const code = (input?.value || '').trim();
+  if (!code) {
+    payPromoDiscount = 0;
+    payAppliedPromo = '';
+    renderPaymentModal();
+    return;
+  }
+  try {
+    const r = await api('/api/orders/check-promo', { method: 'POST', body: { code, planId: selectedPayPlanId } });
+    if (r.valid && Number(r.discount) > 0) {
+      payPromoDiscount = Number(r.discount);
+      payAppliedPromo = code;
+      renderPaymentModal();
+      showToast(`Промокод применён: -${payPromoDiscount}%`, 'success');
+    } else {
+      payPromoDiscount = 0;
+      payAppliedPromo = '';
+      renderPaymentModal();
+      showToast('Промокод не найден или неактивен', 'error');
+    }
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function submitPayment() {
+  if (!currentUser) {
+    closeModal('payment');
+    location.href = '/';
+    showToast('Войдите в аккаунт для автоматической выдачи подписки', 'info');
+    return;
+  }
+  const btn = document.getElementById('payContinueBtn');
+  if (!btn || btn.classList.contains('loading')) return;
+
+  btn.classList.add('loading');
+  try {
+    const r = await api('/api/payments/create', {
+      method: 'POST',
+      body: {
+        planId: selectedPayPlanId,
+        method: selectedPayMethodId,
+        promoCode: payAppliedPromo
+      }
+    });
+    if (r.payUrl) {
+      closeModal('payment');
+      showToast('Счёт создан. Оплатите в Crypto Bot — подписка выдастся автоматически', 'info');
+      watchPayment(r.orderId);
+      if (!window.open(r.payUrl, '_blank', 'noopener')) location.href = r.payUrl;
+      return;
+    }
+    showToast(r.message || 'Счёт сформирован', 'success');
+    closeModal('payment');
+  } catch (err) {
+    if (err.status === 401) handleExpired();
+    showToast(err.message, 'error');
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+function watchPayment(orderId) {
+  if (!orderId) return;
+  try { localStorage.setItem('snw_order', orderId); } catch {}
+  let tries = 0;
+  const t = setInterval(async () => {
+    if (++tries > 180) { clearInterval(t); return; }          // ~12 минут
+    try {
+      const r = await api('/api/payments/' + orderId);
+      if (r.paid) {
+        clearInterval(t);
+        try { localStorage.removeItem('snw_order'); } catch {}
+        showToast('Оплата получена! Подписка активирована', 'success');
+        setTimeout(() => location.reload(), 1200);
+      } else if (r.status === 'expired') {
+        clearInterval(t);
+        try { localStorage.removeItem('snw_order'); } catch {}
+        showToast('Счёт истёк', 'error');
+      }
+    } catch {}
+  }, 4000);
+}
+
+
+  window.openPaymentModal = openPaymentModal; window.selectPayMethod = selectPayMethod;
+  window.selectPayPlan = selectPayPlan; window.applyPayPromo = applyPayPromo;
+  window.submitPayment = submitPayment; window.watchPayment = watchPayment;
+})();
+document.addEventListener('DOMContentLoaded', () => {
+  try { const o = localStorage.getItem('snw_order'); if (o) window.watchPayment(o); } catch {}
+});

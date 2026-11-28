@@ -2470,3 +2470,5 @@ section { padding: 72px 0; }
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.pay-method-ico img{width:28px;height:28px;display:block}
