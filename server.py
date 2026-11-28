@@ -200,7 +200,7 @@ def has_active_subscription(u):
 
 
 def user_json(u):
-    name = u["username"]  # отображаемое имя всегда равно нику и не редактируется
+    name = u["username"]
     hwid_val = (u.get("hwid") or "").strip()
     return {
         "id": u["id"],
@@ -218,6 +218,8 @@ def user_json(u):
         "bio": u["bio"],
         "hwid": hwid_val,
         "hwid_bound_at": u.get("hwid_bound_at") or "",
+        "launch_count": int(u.get("launch_count") or 0),
+        "last_launch_at": u.get("last_launch_at") or "",
         "has_subscription": has_active_subscription(u),
         "is_blocked": False,
         "isBlocked": False,
@@ -227,6 +229,15 @@ def user_json(u):
         "friendship_status": None,
     }
 
+
+# 3. Добавь функцию инкремента запусков при успешной авторизации лаунчера:
+def _record_launch(user_id: int) -> int:
+    row = _db1(
+        "UPDATE users SET launch_count = COALESCE(launch_count, 0) + 1, last_launch_at = ? "
+        "WHERE id = ? RETURNING launch_count",
+        (now_iso(), user_id),
+    )
+    return int((row or {}).get("launch_count") or 0)
 
 def public_user_json(u):
     d = user_json(u)
@@ -487,21 +498,24 @@ def launcher_auth(h, body, user):
     if not has_active_subscription(u):
         return h.json_out({"status": "error", "message": "Нет активной подписки. Оформите на сайте"}, 403)
 
-    if not _bind_or_verify_hwid(u["id"], hwid):
+ if not _bind_or_verify_hwid(u["id"], hwid):
         return h.json_out(
             {"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"},
             403,
         )
 
+    launches = _record_launch(u["id"])
+
     return h.json_out({
         "status": "ok",
         "username": u["username"],
         "role": u["role"],
+        "launch_count": launches,
         "key_envelope": make_key_envelope(hwid, nonce),
         **_client_hashes(),
     })
 
-
+   
 @route("POST", "/api/launcher/web-session")
 def launcher_web_session(h, body, user):
     if not isinstance(body, dict):
@@ -1757,6 +1771,8 @@ def migrate():
         "backup_codes TEXT NOT NULL DEFAULT ''",
         "hwid TEXT NOT NULL DEFAULT ''",
         "hwid_bound_at TEXT NOT NULL DEFAULT ''",
+        "launch_count INTEGER NOT NULL DEFAULT 0",
+        "last_launch_at TEXT NOT NULL DEFAULT ''",
         "referred_by INTEGER",
         "ref_paid INTEGER NOT NULL DEFAULT 0",
         "terms_accepted_at TEXT NOT NULL DEFAULT ''",

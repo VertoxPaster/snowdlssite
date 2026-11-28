@@ -162,6 +162,25 @@ function renderProfile() {
 
   const hasSub = Boolean(u.has_subscription);
   const subPill = document.getElementById('cabSubPill');
+  const subStateText = document.getElementById('cabSubStateText');
+  if (subPill) {
+    subPill.textContent = hasSub ? tt('cabSubActive') : tt('cabSubInactive');
+    subPill.className = 'cab-sub-pill ' + (hasSub ? 'active' : 'inactive');
+  }
+  if (subStateText) {
+    subStateText.textContent = hasSub ? 'SnowClient · 1.21.11' : 'Базовый доступ';
+  }
+
+  // Количество запусков клиента
+  const launches = Number(u.launch_count || 0);
+  const launchEl = document.getElementById('cabLaunchCount');
+  const lastLaunchEl = document.getElementById('cabLastLaunch');
+  if (launchEl) launchEl.textContent = launches.toLocaleString('ru-RU');
+  if (lastLaunchEl) {
+    lastLaunchEl.textContent = u.last_launch_at
+      ? tt('cabLaunchesLast') + fmtDate(u.last_launch_at)
+      : tt('cabLaunchesNever');
+  }
   subPill.textContent = hasSub ? tt('cabSubActive') : tt('cabSubInactive');
   subPill.className = 'cab-sub-pill ' + (hasSub ? 'active' : 'inactive');
 
