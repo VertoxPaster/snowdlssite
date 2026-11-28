@@ -3,48 +3,54 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SnowClient — Minecraft 2026</title>
-  <meta name="description" content="SnowClient — клиент для Minecraft 1.21.11 с обходами GrimAC, Matrix и Vulcan, оптимизацией FPS и кастомным ClickGUI." />
+  <title>SnowClient — Fabric 1.21.11</title>
+  <meta name="description" content="SnowClient — визуальный и PvP-клиент для Minecraft 1.21.11 Fabric с кастомным ClickGUI, оптимизацией FPS и обходами GrimAC, Matrix и Vulcan." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="ready">
 
-<!-- ═════ BACKGROUND ═════ -->
+<!-- ═════ UNIFIED LIQUID GLASS BACKGROUND ═════ -->
 <div class="bg-base"></div>
+<div class="ambient-orbs" aria-hidden="true">
+  <span class="orb orb-1"></span>
+  <span class="orb orb-2"></span>
+  <span class="orb orb-3"></span>
+</div>
 <canvas class="smoke-canvas" id="smokeCanvas" aria-hidden="true"></canvas>
 <div class="bg-grid"></div>
 <div class="cursor-glow" id="cursorGlow"></div>
 <div class="scroll-progress" id="scrollProgress"></div>
 
-<!-- ═════ NAVBAR (ZENITH PILL) ═════ -->
+<!-- ═════ NAVBAR (SEAMLESS LIQUID GLASS PILL) ═════ -->
 <nav class="navbar" id="navbar">
-  <div class="nav-pill nav-pill-zenith">
+  <div class="nav-pill">
 
-    <ul class="nav-center" id="navCenter">
-      <li><a href="#pricing"  data-i18n="nav3">Тарифы</a></li>
-      <li><a href="#features" data-i18n="nav1">Функции</a></li>
-      <li><a href="#video"    data-i18n="nav2">Видеообзор</a></li>
-      <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
-    </ul>
-
-    <span class="nav-logo nav-logo-center" onclick="scrollTo({top:0,behavior:'smooth'})" title="SnowClient">
+    <span class="nav-logo" onclick="scrollTo({top:0,behavior:'smooth'})">
       <span class="logo-flake">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
           <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
-          <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
         </svg>
       </span>
+      <span class="logo-text">SnowClient</span>
     </span>
+
+    <ul class="nav-center" id="navCenter">
+      <li><a href="#showcase" data-i18n="nav1">Модули</a></li>
+      <li><a href="#video"    data-i18n="nav2">Обзор</a></li>
+      <li><a href="#pricing"  data-i18n="nav3">Тарифы</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
+    </ul>
 
     <div class="nav-right">
       <div class="lang-selector" id="langSelector">
         <button class="lang-btn" id="langBtn" type="button" onclick="toggleLangDropdown()">
-          <span id="langFlag">🇷🇺</span>
+          <span id="langFlag">RU</span>
           <span id="langLabel">RU</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <polyline points="6,9 12,15 18,9"></polyline>
           </svg>
         </button>
@@ -53,15 +59,15 @@
 
       <button class="nav-auth magnetic" id="navAuth" type="button" onclick="onAuthClick()">
         <span class="nav-auth-avatar" id="navAuthAvatar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 19.5c1.5-3.2 4-4.5 7-4.5s5.5 1.3 7 4.5"/></svg>
         </span>
         <span class="nav-auth-text">
           <span class="nav-auth-name" id="navAuthName" data-i18n="navLogin">Войти</span>
-          <span class="nav-auth-bal" id="navAuthBal" style="display:none !important;"></span>
+          <span class="nav-auth-bal" id="navAuthBal" hidden></span>
         </span>
       </button>
 
-      <a href="#pricing" class="nav-buy nav-buy-pill" data-i18n="navBuy">Купить</a>
+      <a href="#pricing" class="nav-buy" data-i18n="navBuy">Купить</a>
 
       <button class="hamburger" id="hamburger" type="button" onclick="toggleMobileMenu()" aria-label="Меню">
         <span></span><span></span><span></span>
@@ -71,163 +77,175 @@
 </nav>
 
 <div class="mobile-menu" id="mobileMenu">
+  <a href="#showcase" onclick="closeMobileMenu()" data-mob-i18n="nav1">Модули</a>
+  <a href="#video"    onclick="closeMobileMenu()" data-mob-i18n="nav2">Обзор</a>
   <a href="#pricing"  onclick="closeMobileMenu()" data-mob-i18n="nav3">Тарифы</a>
-  <a href="#features" onclick="closeMobileMenu()" data-mob-i18n="nav1">Функции</a>
-  <a href="#video"    onclick="closeMobileMenu()" data-mob-i18n="nav2">Видеообзор</a>
+  <a href="#faq"      onclick="closeMobileMenu()">FAQ</a>
   <a href="#support"  onclick="closeMobileMenu()" data-mob-i18n="nav4">Поддержка</a>
   <button class="mobile-auth" id="mobileAuth" type="button" onclick="closeMobileMenu(); onAuthClick()">
     <span id="mobileAuthLabel" data-i18n="navLogin">Войти</span>
   </button>
 </div>
 
-<!-- ═════ HERO (ZENITH CENTERED STYLE) ═════ -->
+<!-- ═════ HERO + INTERACTIVE CLICKGUI SANDBOX ═════ -->
 <section id="hero" style="padding:0;">
-  <div class="hero hero-zenith">
-    <div class="hero-z-container">
+  <div class="hero">
+    <div class="hero-inner">
 
-      <div class="hero-eyebrow anim-up">
-        <span class="hero-eyebrow-dot"></span>
-        Присоединяйся · Fabric 1.21.11
-      </div>
-
-      <h1 id="heroTitle" class="hero-z-h1" aria-label="SnowClient">
-        <span class="hero-title-line hero-title-static" data-split="Готов доминировать?">Готов доминировать?</span>
-      </h1>
-
-      <p class="hero-tagline anim-up-3" id="heroTagline" style="display:none;"></p>
-
-      <p class="hero-desc hero-z-sub anim-up-3" id="heroQuote">
-        SnowClient от 180 ₽. Лоадер в кабинете сразу после оплаты, обходы GrimAC, Matrix и Vulcan.
-      </p>
-
-      <div class="hero-z-cta-row anim-up-4">
-        <div class="hero-z-avatars" aria-hidden="true">
-          <span>S</span><span>V</span><span>K</span><span>M</span>
+      <div class="hero-left">
+        <div class="hero-eyebrow anim-up">
+          <span class="hero-eyebrow-dot"></span>
+          <span>Fabric 1.21.11 · Build 2.4</span>
         </div>
 
-        <a href="#pricing" class="btn btn-primary magnetic hero-z-btn" id="heroBtnBuy">
-          Купить SnowClient
-        </a>
+        <h1 id="heroTitle" aria-label="SnowClient">
+          <span class="hero-title-line hero-title-static" data-split="SnowClient">SnowClient</span>
+          <span class="hero-title-line hero-title-accent" data-split="1.21.11">1.21.11</span>
+        </h1>
 
-        <span class="hero-z-users">Стабильный FPS и актуальные обходы</span>
+        <p class="hero-tagline anim-up-3" id="heroTagline">Визуалы, плавные ротации и стабильный FPS без лишней нагрузки.</p>
+
+        <p class="hero-desc anim-up-3" id="heroQuote">
+          Кастомный Liquid Glass ClickGUI, гибкий HUD-редактор, облачные конфиги и актуальные обходы под GrimAC, Matrix и Vulcan.
+        </p>
+
+        <div class="hero-actions anim-up-4">
+          <a href="#pricing" class="btn btn-primary magnetic" id="heroBtnBuy">
+            Выбрать тариф
+          </a>
+          <a href="#showcase" class="btn btn-outline" id="heroBtnLearn">Смотреть модули</a>
+        </div>
+
+        <div class="hero-chips anim-up-5">
+          <span class="chip">GrimAC · Matrix · Vulcan</span>
+          <span class="chip">Cloud Configs</span>
+          <span class="chip">Автовыдача в кабинете</span>
+        </div>
       </div>
 
-      <div class="hero-z-perks anim-up-5">
-        <span>• Мгновенная выдача</span>
-        <span>• Поддержка 24/7</span>
-        <span>• Без автосписаний</span>
+      <!-- Интерактивный ClickGUI вместо пустого прямоугольника -->
+      <div class="hero-right anim-right">
+        <div class="gui-sandbox glass spot" id="guiSandbox">
+          <div class="gui-topbar">
+            <div class="gui-dots"><i></i><i></i><i></i></div>
+            <span class="gui-win-title">SnowClient · ClickGUI</span>
+            <span class="gui-fps-badge" id="guiFpsBadge">240 FPS</span>
+          </div>
+
+          <div class="gui-tabs" role="tablist">
+            <button type="button" class="gui-tab active" data-cat="combat" onclick="selectGuiCat('combat', this)">Combat</button>
+            <button type="button" class="gui-tab" data-cat="visuals" onclick="selectGuiCat('visuals', this)">Visuals</button>
+            <button type="button" class="gui-tab" data-cat="movement" onclick="selectGuiCat('movement', this)">Movement</button>
+            <button type="button" class="gui-tab" data-cat="hud" onclick="selectGuiCat('hud', this)">HUD</button>
+          </div>
+
+          <div class="gui-modules-list" id="guiModulesList"></div>
+
+          <div class="gui-hud-bar">
+            <div class="gui-hud-label">Активный ArrayList</div>
+            <div class="gui-hud-tags" id="guiActiveTags"></div>
+          </div>
+        </div>
       </div>
 
     </div>
   </div>
 </section>
 
-<!-- ═════ NETWORK ACTIVITY (ZENITH TELEMETRY BLOCK) ═════ -->
-<section id="telemetry" style="padding-top: 20px;">
+<!-- ═════ BENTO SHOWCASE (NO GENERIC ICON BOXES) ═════ -->
+<section id="showcase">
   <div class="container">
     <div class="section-header reveal">
-      <div class="section-eyebrow">Статистика</div>
-      <h2 class="section-title">Активность сети</h2>
-      <p class="section-subtitle">Аккаунты, запуски клиента и обновления — живые цифры из нашей базы.</p>
+      <div class="section-eyebrow" data-i18n="eyebrowFeatures">Архитектура</div>
+      <h2 class="section-title" data-i18n="sectionFeatures">Сделано для реальной игры</h2>
+      <p class="section-subtitle" data-i18n="featuresSubtitle">Никаких громоздких меню — только то, что влияет на контроль, картинку и кадры.</p>
     </div>
 
-    <div class="z-stats-top reveal">
-      <div class="z-stat-card glass spot">
-        <div class="z-stat-ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+    <div class="bento-grid reveal">
+      <article class="bento-card bento-wide glass spot">
+        <div class="bento-kicker">01 · Visual Engine</div>
+        <h3>Шейдерные визуалы и кастомный HUD</h3>
+        <p>TargetESP с плавной интерполяцией, ChinaHat, JumpCircles, Trails, настройка неба и тумана. Каждый элемент HUD перетаскивается мышью прямо в игре.</p>
+        <div class="bento-pills">
+          <span>TargetESP</span>
+          <span>ChinaHat</span>
+          <span>JumpCircles</span>
+          <span>CustomSky</span>
+          <span>Watermark</span>
         </div>
-        <div>
-          <div class="z-stat-lbl">Версия игры</div>
-          <div class="z-stat-num">1.21.11</div>
-        </div>
-      </div>
+      </article>
 
-      <div class="z-stat-card glass spot">
-        <div class="z-stat-ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        </div>
-        <div>
-          <div class="z-stat-lbl">Античиты</div>
-          <div class="z-stat-num">Grim · Matrix</div>
-        </div>
-      </div>
+      <article class="bento-card glass spot">
+        <div class="bento-kicker">02 · Anti-Cheat</div>
+        <h3>Адаптивные ротации</h3>
+        <p>Коррекция движения и сглаживание наводки с пресетами под GrimAC, Matrix и Vulcan без лишних флагов.</p>
+      </article>
 
-      <div class="z-stat-card glass spot">
-        <div class="z-stat-ico">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+      <article class="bento-card glass spot">
+        <div class="bento-kicker">03 · Performance</div>
+        <h3>Оптимизация рендера</h3>
+        <p>Батчинг 2D-шейдеров и очистка лишних частиц удерживают высокий FPS даже в замесах на 30+ игроков.</p>
+      </article>
+
+      <article class="bento-card bento-wide glass spot">
+        <div class="bento-kicker">04 · Config System</div>
+        <h3>Конфиги в один клик и быстрый запуск</h3>
+        <p>Сохраняй раскладки биндов, цвета и настройки модулей в локальные или облачные профили. Авторизация в лоадере занимает 3 секунды.</p>
+        <div class="bento-code-line">
+          <code>.cfg load funtime_main</code>
+          <span>Конфиг применён · 24 модуля</span>
         </div>
-        <div>
-          <div class="z-stat-lbl">Аптайм лоадера</div>
-          <div class="z-stat-num">99.9%</div>
-        </div>
-      </div>
+      </article>
     </div>
+
+    <!-- Скрытый контейнер для обратной совместимости со script.js -->
+    <div class="features-grid" id="featuresGrid" style="display:none;"></div>
   </div>
 </section>
 
 <div class="divider"></div>
 
-<!-- ═════ VIDEO / SHOWCASE ═════ -->
+<!-- ═════ VIDEO / MEDIA SHOWCASE ═════ -->
 <section id="video">
   <div class="container">
     <div class="video-section-container">
 
       <div class="reveal">
-        <div class="section-eyebrow" data-i18n="eyebrowVideo">Обзор</div>
-        <h2 class="section-title" data-i18n="sectionVideo">Попробуй SnowClient</h2>
-        <p class="section-subtitle" data-i18n="videoSubtitle">Продвинутые функции, полностью интерактивный ClickGUI и высокопроизводительные механики.</p>
-
-        <div class="hero-chips" style="margin-top: 20px;">
-          <span class="chip">Fabric 1.21.11</span>
-          <span class="chip">ClickGUI</span>
-          <span class="chip">Обходы GrimAC · Matrix · Vulcan</span>
-        </div>
+        <div class="section-eyebrow" data-i18n="eyebrowVideo">Медиа</div>
+        <h2 class="section-title" data-i18n="sectionVideo">Геймплей и интерфейс</h2>
+        <p class="section-subtitle" data-i18n="videoSubtitle">Посмотри, как выглядит клиент в движении: анимации меню, визуалы и работа в PvP.</p>
 
         <div class="video-bullets">
           <div class="video-bullet">
-            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <span class="video-bullet-text" data-i18n="videoBullet1">Реальный геймплей без монтажа</span>
+            <span class="bullet-num">01</span>
+            <span class="video-bullet-text" data-i18n="videoBullet1">Запись с реального сервера без склеек</span>
           </div>
           <div class="video-bullet">
-            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <span class="video-bullet-text" data-i18n="videoBullet2">Показ всех ключевых функций и ротаций</span>
+            <span class="bullet-num">02</span>
+            <span class="video-bullet-text" data-i18n="videoBullet2">Демонстрация ClickGUI, HUD-редактора и биндов</span>
           </div>
           <div class="video-bullet">
-            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <span class="video-bullet-text" data-i18n="videoBullet3">Настройка интерфейса и конфигов в деталях</span>
+            <span class="bullet-num">03</span>
+            <span class="video-bullet-text" data-i18n="videoBullet3">Работа визуалов и плавность анимаций</span>
           </div>
         </div>
       </div>
 
       <div class="reveal reveal-d2">
-        <div class="video-embed-wrap" id="videoContainer">
-          <div class="video-embed-placeholder" id="heroVideoFrame">
-            <div class="play-icon-wrap">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <div class="video-embed-wrap glass" id="videoContainer">
+          <div class="hero-video-frame" id="heroVideoFrame" style="border:none;background:transparent;">
+            <div class="hero-video-placeholder" id="heroVideoPlaceholder">
+              <div class="play-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+              <p id="videoPlaceholderText">Видеообзор скоро появится</p>
+              <span id="heroVideoHint" style="font-size:0.75rem;color:var(--text-muted);">1080p · 60 FPS</span>
             </div>
-            <p id="videoPlaceholderText">Видеообзор скоро появится здесь</p>
           </div>
         </div>
       </div>
 
     </div>
-  </div>
-</section>
-
-<div class="divider"></div>
-
-<!-- ═════ FEATURES ═════ -->
-<section id="features">
-  <div class="container">
-
-    <div class="section-header reveal">
-      <div class="section-eyebrow" data-i18n="eyebrowFeatures">Преимущества</div>
-      <h2 class="section-title" data-i18n="sectionFeatures">Возможности SnowClient</h2>
-      <p class="section-subtitle" data-i18n="featuresSubtitle">Всё, что ты получаешь сразу после покупки.</p>
-    </div>
-
-    <div class="features-grid" id="featuresGrid"></div>
-
   </div>
 </section>
 
@@ -238,13 +256,62 @@
   <div class="container">
 
     <div class="section-header reveal">
-      <div class="section-eyebrow" data-i18n="eyebrowPricing">Тарифы</div>
+      <div class="section-eyebrow" data-i18n="eyebrowPricing">Доступ</div>
       <h2 class="section-title" data-i18n="sectionPricing">Тарифы</h2>
-      <p class="section-subtitle" data-i18n="pricingSubtitle">Выбери подходящий план. Во всех планах доступен полный функционал.</p>
+      <p class="section-subtitle" data-i18n="pricingSubtitle">Во всех тарифах открыты все модули, обновления и доступ к лоадеру в личном кабинете.</p>
     </div>
 
     <div class="pricing-grid" id="pricingGrid"></div>
 
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═════ CHANGELOG & FAQ ═════ -->
+<section id="faq">
+  <div class="container">
+    <div class="faq-changelog-grid">
+
+      <!-- Последние обновления -->
+      <div class="reveal">
+        <div class="section-eyebrow">Changelog</div>
+        <h2 class="section-title" style="font-size:1.75rem;">Актуальная сборка</h2>
+        <div class="changelog-card glass spot">
+          <div class="cl-head">
+            <span class="cl-ver">v2.4 · 1.21.11</span>
+            <span class="cl-status">Актуально</span>
+          </div>
+          <ul class="cl-list">
+            <li><b>ClickGUI:</b> переработан рендер блюра и плавность скролла категорий</li>
+            <li><b>TargetESP:</b> добавлены режимы Orbit и Ghost с настройкой цвета</li>
+            <li><b>Combat:</b> улучшена коррекция движения под актуальный GrimAC</li>
+            <li><b>Loader:</b> ускорена проверка сессии и загрузка библиотек</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Частые вопросы -->
+      <div class="reveal reveal-d1">
+        <div class="section-eyebrow">Вопросы</div>
+        <h2 class="section-title" style="font-size:1.75rem;">Часто спрашивают</h2>
+        <div class="faq-list">
+          <details class="faq-item glass" open>
+            <summary>Как быстро выдаётся подписка после оплаты?</summary>
+            <p>При прямой оплате подписка активируется на аккаунт автоматически за пару секунд. Если покупаешь через FunPay — вставь полученный ключ во вкладке «Ключи и оплата» в личном кабинете.</p>
+          </details>
+          <details class="faq-item glass">
+            <summary>Какая версия игры и система нужны?</summary>
+            <p>Клиент работает на Windows 10 / 11 (x64) для Minecraft 1.21.11 (Fabric). Лоадер сам докачает нужные файлы при первом запуске.</p>
+          </details>
+          <details class="faq-item glass">
+            <summary>Как работает привязка к ПК (HWID)?</summary>
+            <p>При первом запуске лоадера аккаунт привязывается к твоему железу. Если сменишь ПК или переустановишь систему, сбросить привязку можно через поддержку.</p>
+          </details>
+        </div>
+      </div>
+
+    </div>
   </div>
 </section>
 
@@ -255,45 +322,29 @@
   <div class="container">
 
     <div class="section-header reveal" style="text-align:center;">
-      <div class="section-eyebrow" style="justify-content:center;" data-i18n="eyebrowSupport">Контакты</div>
+      <div class="section-eyebrow" style="justify-content:center;" data-i18n="eyebrowSupport">Связь</div>
       <h2 class="section-title" data-i18n="sectionSupport">Поддержка</h2>
-      <p class="section-subtitle" data-i18n="supportSubtitle" style="margin:0 auto;">Остались вопросы? Напиши нам — поможем.</p>
+      <p class="section-subtitle" data-i18n="supportSubtitle" style="margin:0 auto;">Поможем с запуском, сбросом HWID или активацией ключа.</p>
     </div>
 
     <div class="support-grid">
 
-      <a class="support-card spot reveal reveal-d1" id="supportEmailCard" href="#">
-        <div class="support-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
-            <rect x="2" y="4" width="20" height="16" rx="2.5"/>
-            <path d="M2 7l10 7 10-7"/>
-          </svg>
-        </div>
-        <div class="support-label" data-i18n="supportEmail">Почта для связи</div>
+      <a class="support-card glass spot reveal reveal-d1" id="supportEmailCard" href="#">
+        <div class="support-label" data-i18n="supportEmail">Почта</div>
         <div class="support-value" id="supportEmailVal"></div>
         <div class="support-hours" id="supportHoursVal"></div>
       </a>
 
-      <a class="support-card spot reveal reveal-d2" id="supportDiscordCard" href="#" target="_blank" rel="noopener">
-        <div class="support-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 11.5a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z"/>
-            <path d="M19.27 5.33A17.75 17.75 0 0014.94 4c-.18.33-.38.77-.52 1.12a16.36 16.36 0 00-4.84 0A11.2 11.2 0 009.06 4 17.8 17.8 0 004.73 5.33C2.02 9.46 1.27 13.48 1.65 17.45A17.87 17.87 0 007.1 20c.42-.57.79-1.17 1.11-1.81a11.6 11.6 0 01-1.74-.84l.42-.33a12.73 12.73 0 0010.22 0l.43.33c-.55.33-1.14.61-1.75.84.32.64.69 1.24 1.11 1.81a17.83 17.83 0 005.45-2.55c.44-4.53-.75-8.52-3.08-12.17z"/>
-          </svg>
-        </div>
+      <a class="support-card glass spot reveal reveal-d2" id="supportDiscordCard" href="#" target="_blank" rel="noopener">
         <div class="support-label" data-i18n="supportDiscord">Discord</div>
         <div class="support-value">Discord Server</div>
+        <div class="support-hours">Тикеты и новости</div>
       </a>
 
-      <a class="support-card spot reveal reveal-d3" id="supportTelegramCard" href="#" target="_blank" rel="noopener">
-        <div class="support-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 3.5L2.5 10.5l6.5 2 2 6.5 3-4 5.5 4z"/>
-            <path d="M9 12.5l9-9"/>
-          </svg>
-        </div>
+      <a class="support-card glass spot reveal reveal-d3" id="supportTelegramCard" href="#" target="_blank" rel="noopener">
         <div class="support-label" data-i18n="supportTelegram">Telegram</div>
         <div class="support-value">Telegram Channel</div>
+        <div class="support-hours">Быстрый ответ</div>
       </a>
 
     </div>
@@ -307,22 +358,21 @@
     <div class="footer-brand">
       <div class="footer-brand-name">
         <span class="logo-flake">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
             <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
-            <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
           </svg>
         </span>
         SnowClient
       </div>
-      <p class="footer-tagline" id="footerTagline">Клиент для Minecraft 1.21.11 с обходами GrimAC, Matrix и Vulcan.</p>
+      <p class="footer-tagline" id="footerTagline">Клиент для Minecraft 1.21.11 Fabric.</p>
     </div>
 
     <div class="footer-col">
-      <h4 data-i18n="footerNav">Продукты</h4>
+      <h4 data-i18n="footerNav">Навигация</h4>
       <ul>
-        <li><a href="#pricing"  data-i18n="nav3">Все тарифы</a></li>
-        <li><a href="#features" data-i18n="nav1">Функции</a></li>
-        <li><a href="#video"    data-i18n="nav2">Видеообзор</a></li>
+        <li><a href="#showcase" data-i18n="nav1">Модули</a></li>
+        <li><a href="#video"    data-i18n="nav2">Обзор</a></li>
+        <li><a href="#pricing"  data-i18n="nav3">Тарифы</a></li>
         <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
       </ul>
     </div>
@@ -345,8 +395,6 @@
       <a href="#" id="footerTelegram" target="_blank">Telegram</a>
     </div>
   </div>
-
-  <div class="footer-mark" aria-hidden="true">SnowClient</div>
 </footer>
 
 <!-- ═════ PAYMENT MODAL ═════ -->
@@ -405,7 +453,7 @@
   </div>
 </div>
 
-<!-- ═════ AUTH MODAL (ZENITH SPLIT + FULL COMPATIBILITY) ═════ -->
+<!-- ═════ AUTH MODAL (LIQUID GLASS SPLIT) ═════ -->
 <div class="modal-overlay" id="modalAuth" onclick="closeModalOutside(event,'modalAuth')">
   <div class="modal glass auth-modal-zenith">
     <button class="modal-close auth-z-close" type="button" onclick="closeModal('auth')" aria-label="Close">
@@ -414,45 +462,34 @@
 
     <div class="auth-z-grid">
       <div class="auth-z-left">
-        <div class="auth-z-brand">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
-            <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
-          </svg>
-        </div>
-
-        <!-- Обязательные вкладки для client-auth.js (оформлены как чистые пилюли) -->
         <div class="auth-tabs auth-z-tabs" id="authTabs" role="tablist">
           <span class="auth-tab-indicator" id="authIndicator"></span>
           <button class="auth-tab active" id="tabLogin" role="tab" type="button" onclick="switchAuthTab('login')" data-i18n="authLogin">Вход</button>
           <button class="auth-tab" id="tabRegister" role="tab" type="button" onclick="switchAuthTab('register')" data-i18n="authRegister">Регистрация</button>
         </div>
 
-        <h3 class="auth-z-title" id="authZTitle">С возвращением</h3>
-        <p class="auth-sub auth-z-sub" id="authSub" data-i18n="authSubLogin">Войдите, чтобы продолжить.</p>
+        <h3 class="auth-z-title" id="authZTitle">Вход в аккаунт</h3>
+        <p class="auth-sub auth-z-sub" id="authSub" data-i18n="authSubLogin">Введите данные от профиля SnowClient.</p>
 
         <form class="auth-form auth-z-form" id="authForm" onsubmit="submitAuth(event)" novalidate>
           <div class="z-input-group field-register" id="fieldUsername">
             <label for="authUsername" data-i18n="authUsername">Имя пользователя</label>
             <div class="z-input-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <input type="text" id="authUsername" autocomplete="username" maxlength="20" placeholder="Введите никнейм" />
+              <input type="text" id="authUsername" autocomplete="username" maxlength="20" placeholder="Никнейм" />
             </div>
           </div>
 
           <div class="z-input-group" id="fieldIdent">
             <label for="authIdent" id="authIdentLabel" data-i18n="authIdent">Имя пользователя или Email</label>
             <div class="z-input-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              <input type="text" id="authIdent" autocomplete="username" placeholder="Введите никнейм или Email" />
+              <input type="text" id="authIdent" autocomplete="username" placeholder="Логин или Email" />
             </div>
           </div>
 
           <div class="z-input-group">
             <label for="authPassword" id="authPasswordLabel" data-i18n="authPassword">Пароль</label>
             <div class="z-input-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-              <input type="password" id="authPassword" autocomplete="current-password" placeholder="Введите пароль" />
+              <input type="password" id="authPassword" autocomplete="current-password" placeholder="Пароль" />
             </div>
           </div>
 
@@ -470,34 +507,22 @@
         </form>
       </div>
 
-      <!-- Правая колонка: стеклянная 3D-иконка входа -->
       <div class="auth-z-right" aria-hidden="true">
-        <div class="auth-z-glass-portal">
-          <svg viewBox="0 0 160 220" fill="none">
-            <defs>
-              <linearGradient id="glassStroke" x1="0" y1="0" x2="160" y2="220" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
-                <stop offset="35%" stop-color="#9CA3AF" stop-opacity="0.35"/>
-                <stop offset="70%" stop-color="#FFFFFF" stop-opacity="0.8"/>
-                <stop offset="100%" stop-color="#6B7280" stop-opacity="0.25"/>
-              </linearGradient>
-              <linearGradient id="glassFill" x1="20" y1="10" x2="140" y2="210" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.12"/>
-                <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.02"/>
-                <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.08"/>
-              </linearGradient>
-            </defs>
-            <rect x="44" y="14" width="102" height="192" rx="28" fill="url(#glassFill)" stroke="url(#glassStroke)" stroke-width="5"/>
-            <rect x="52" y="22" width="86" height="176" rx="21" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="1.5"/>
-            <path d="M12 110H104M104 110L74 80M104 110L74 140" stroke="url(#glassStroke)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+        <div class="auth-z-info">
+          <span class="chip">Личный кабинет</span>
+          <h4>Управление подпиской и лоадером</h4>
+          <ul>
+            <li>Скачивание актуального SnowClient.exe</li>
+            <li>Мгновенная активация ключей FunPay</li>
+            <li>Статус привязки HWID и история покупок</li>
+          </ul>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═════ CABINET MODAL (БЕЗ БАЛАНСА) ═════ -->
+<!-- ═════ CABINET MODAL (FALLBACK) ═════ -->
 <div class="modal-overlay" id="modalCabinet" onclick="closeModalOutside(event,'modalCabinet')">
   <div class="modal glass cabinet-modal">
     <div class="modal-header">
@@ -507,7 +532,6 @@
       </button>
     </div>
     <div class="modal-body">
-
       <div class="cab-user">
         <div class="cab-avatar" id="cabAvatar">?</div>
         <div class="cab-user-info">
@@ -526,7 +550,7 @@
         <h4 data-i18n="cabKey">Активация ключа</h4>
         <form class="cab-key" onsubmit="activateKey(event)">
           <input type="text" id="cabKeyInput" class="cab-key-input" autocomplete="off" spellcheck="false" data-ph="cabKeyPh" placeholder="SNW-XXXX-XXXX-XXXX" />
-          <button class="btn btn-primary" id="cabKeyBtn" type="submit" style="border-radius:99px;"><span class="spinner"></span><span data-i18n="cabActivate">Активировать</span></button>
+          <button class="btn btn-primary" id="cabKeyBtn" type="submit"><span class="spinner"></span><span data-i18n="cabActivate">Активировать</span></button>
         </form>
       </div>
 
@@ -545,10 +569,75 @@
 <script src="script.js"></script>
 <script src="client-auth.js"></script>
 <script>
-  // Синхронизация заголовка модалки при переключении вкладок Вход / Регистрация
+  // Интерактивный ClickGUI в Hero
+  const GUI_DATA = {
+    combat: [
+      { name: 'KillAura', bind: 'R', desc: 'Плавная наводка с коррекцией под GrimAC', on: true },
+      { name: 'Velocity', bind: 'V', desc: 'Снижение отбрасывания в PvP', on: true },
+      { name: 'AutoTotem', bind: 'X', desc: 'Автосвап тотема при низком HP', on: true },
+      { name: 'Criticals', bind: '—', desc: 'Пакетные криты в прыжке', on: false }
+    ],
+    visuals: [
+      { name: 'TargetESP', bind: '—', desc: 'Шейдерное кольцо вокруг цели', on: true },
+      { name: 'ChinaHat', bind: '—', desc: 'Неоновый конус с градиентом', on: true },
+      { name: 'JumpCircles', bind: '—', desc: 'Волны при приземлении', on: true },
+      { name: 'CustomSky', bind: '—', desc: 'Кастомный цвет неба и тумана', on: false }
+    ],
+    movement: [
+      { name: 'Sprint', bind: '—', desc: 'Автоматический спринт во все стороны', on: true },
+      { name: 'NoSlow', bind: '—', desc: 'Без замедления при использовании предметов', on: true },
+      { name: 'GuiMove', bind: '—', desc: 'Движение при открытом инвентаре', on: true }
+    ],
+    hud: [
+      { name: 'ArrayList', bind: '—', desc: 'Список активных модулей в углу', on: true },
+      { name: 'TargetHUD', bind: '—', desc: 'Карточка здоровья и брони цели', on: true },
+      { name: 'KeyBinds', bind: '—', desc: 'Отображение зажатых клавиш', on: true }
+    ]
+  };
+  let currentGuiCat = 'combat';
+
+  function renderGuiSandbox() {
+    const listEl = document.getElementById('guiModulesList');
+    const tagsEl = document.getElementById('guiActiveTags');
+    if (!listEl || !tagsEl) return;
+
+    const items = GUI_DATA[currentGuiCat] || [];
+    listEl.innerHTML = items.map((m, idx) => `
+      <div class="gui-mod-row ${m.on ? 'is-on' : ''}" onclick="toggleGuiMod('${currentGuiCat}', ${idx})">
+        <div class="gui-mod-info">
+          <div class="gui-mod-top">
+            <span class="gui-mod-name">${m.name}</span>
+            <span class="gui-mod-bind">${m.bind}</span>
+          </div>
+          <div class="gui-mod-desc">${m.desc}</div>
+        </div>
+        <span class="gui-switch ${m.on ? 'on' : ''}"><i></i></span>
+      </div>
+    `).join('');
+
+    const activeAll = Object.values(GUI_DATA).flat().filter(x => x.on).slice(0, 6);
+    tagsEl.innerHTML = activeAll.map(m => `<span class="gui-tag">${m.name}</span>`).join('');
+  }
+
+  function selectGuiCat(cat, btn) {
+    currentGuiCat = cat;
+    document.querySelectorAll('.gui-tab').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderGuiSandbox();
+  }
+
+  function toggleGuiMod(cat, idx) {
+    if (GUI_DATA[cat] && GUI_DATA[cat][idx]) {
+      GUI_DATA[cat][idx].on = !GUI_DATA[cat][idx].on;
+      renderGuiSandbox();
+    }
+  }
+
+  renderGuiSandbox();
+
   document.getElementById('tabLogin')?.addEventListener('click', () => {
     const t = document.getElementById('authZTitle');
-    if (t) t.textContent = 'С возвращением';
+    if (t) t.textContent = 'Вход в аккаунт';
   });
   document.getElementById('tabRegister')?.addEventListener('click', () => {
     const t = document.getElementById('authZTitle');
