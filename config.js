@@ -28,7 +28,7 @@ const CONFIG = {
     primaryLight: "#FFFFFF",                  // Светлый акцент
     primaryDark:  "#FFFFFF",                  // Акцент при наведении
     secondary:    "#B4B7BF",                  // Вторичный серый
-    accent:       "#38BDF8",                  // Подсветка мелких деталей
+    accent:       "#E6E7EA",                  // Подсветка мелких деталей
     bg:           "#040405",                  // Чёрный фон под дымом
     bgCard:       "rgba(2, 2, 3, 0.52)",      // Тёмное матовое стекло под блюр
     bgCardHover:  "rgba(4, 4, 5, 0.64)",      // Фон карточек при наведении
@@ -191,11 +191,11 @@ const CONFIG = {
       lifetime:  "https://funpay.com/lots/offer?id=78533148"
     },
     methods: [
-      { id: "cryptobot", name: "Crypto Bot", badge: "ВСЕ МОНЕТЫ", badgeColor: "#2563eb" },
-      { id: "usdt",      name: "USDT",       badge: "USDT",      badgeColor: "#16a34a" },
-      { id: "ton",       name: "TON",        badge: "TON",       badgeColor: "#0284c7" },
+      { id: "cryptobot", name: "Crypto Bot", badge: "ВСЕ МОНЕТЫ", badgeColor: "#3f3f46" },
+      { id: "usdt",      name: "USDT",       badge: "USDT",      badgeColor: "#3f3f46" },
+      { id: "ton",       name: "TON",        badge: "TON",       badgeColor: "#52525b" },
       { id: "btc",       name: "Bitcoin",    badge: "BTC",       badgeColor: "#f59e0b" },
-      { id: "eth",       name: "Ethereum",   badge: "ETH",       badgeColor: "#6366f1" },
+      { id: "eth",       name: "Ethereum",   badge: "ETH",       badgeColor: "#71717a" },
       { id: "ltc",       name: "Litecoin",   badge: "LTC",       badgeColor: "#64748b" }
     ],
     usePopup: false,

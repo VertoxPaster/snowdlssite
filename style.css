@@ -2424,7 +2424,7 @@ section { padding: 72px 0; }
 .pay-funpay-badge {
   font-weight: 900;
   letter-spacing: 0.02em;
-  color: #2563eb;
+  color: #E6E7EA;
 }
 .pay-info-box {
   margin-top: 16px;
@@ -2797,48 +2797,48 @@ body{background:#09090b}
 @media(max-width:860px){.cab-stats-3{grid-template-columns:1fr}}
 .smoke-canvas{opacity:1;mix-blend-mode:normal}
 
-/* ===== АКЦЕНТ + ВИЗУАЛ КЛИЕНТА + БЛЮР ПОПАПОВ ===== */
-:root{--accent:#38BDF8;--accent-soft:rgba(56,189,248,.14);--accent-line:rgba(56,189,248,.45)}
-.btn-primary,.nav-buy,.pay-btn-continue{background:var(--accent)!important;color:#04121c!important;border-color:var(--accent)!important}
-.btn-primary:hover,.nav-buy:hover{background:#7dd3fc!important}
-.section-eyebrow,.hero-eyebrow,.badge,.pricing-badge,.popular-badge{color:var(--accent)!important;background:var(--accent-soft)!important;border:1px solid var(--accent-line)!important}
-.hero-eyebrow-dot{background:var(--accent)!important}
-.glass:hover,.feature-card:hover,.pricing-card:hover,.z-stat-card:hover,.support-card:hover{border-color:var(--accent-line)!important;box-shadow:0 0 28px -10px var(--accent)!important}
-.pricing-card.popular,.pricing-card.featured{border-color:var(--accent-line)!important}
-.lang-option.active,.nav-auth.logged .nav-auth-avatar{color:var(--accent)!important}
-.nav-auth.logged .nav-auth-avatar{background:var(--accent-soft)!important}
+/* ===== НЕЙТРАЛЬНЫЙ СТЕКЛЯННЫЙ СТИЛЬ (без синего) + БЛЮР + ХОВЕР ===== */
+:root{--accent:#E6E7EA;--accent-soft:rgba(255,255,255,.08);--accent-line:rgba(255,255,255,.22)}
 
-.sw-mock{max-width:560px;margin:34px auto 0;padding:14px;text-align:left;font-size:.85rem}
-.sw-mock-lg{max-width:760px;margin:0 auto 32px;padding:18px}
-.sw-bar{display:flex;align-items:center;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--z-line);margin-bottom:12px;color:#fff}
-.sw-bar i{margin-left:auto;font-style:normal;color:#8B8B93;font-size:.75rem}
-.sw-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
-.sw-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.sw-col{background:rgba(0,0,0,.35);border:1px solid var(--z-line);border-radius:14px;padding:10px}
-.sw-col h6{margin:0 0 8px;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:#8B8B93}
-.sw-row{display:flex;justify-content:space-between;align-items:center;padding:7px 8px;border-radius:10px;color:#a1a1aa}
-.sw-row.on{color:#fff;background:var(--accent-soft)}
-.sw-row s{width:26px;height:14px;border-radius:99px;background:#27272a;position:relative}
-.sw-row s::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:#71717a;transition:.2s}
-.sw-row.on s{background:var(--accent)}
-.sw-row.on s::after{left:14px;background:#04121c}
-.sw-slider{display:flex;align-items:center;gap:8px;padding:8px;color:#a1a1aa}
-.sw-slider em{flex:1;height:4px;border-radius:9px;background:#27272a;overflow:hidden}
-.sw-slider u{display:block;height:100%;background:var(--accent)}
-.sw-slider b{color:#fff;font-weight:600}
-@media(max-width:600px){.sw-cols{grid-template-columns:1fr}}
+/* кнопки: светлое стекло */
+.btn-primary,.nav-buy,.pay-btn-continue,.hero-z-btn,a.btn-primary,button.btn-primary{background:rgba(255,255,255,.92)!important;color:#0a0a0b!important;border:1px solid rgba(255,255,255,.5)!important;transition:transform .25s,background .25s,box-shadow .25s!important}
+.btn-primary:hover,.nav-buy:hover,.pay-btn-continue:hover,.hero-z-btn:hover{background:#fff!important;transform:translateY(-2px);box-shadow:0 10px 30px -10px rgba(255,255,255,.45)!important}
 
-/* попапы: профиль, язык, модалки — настоящий блюр */
+/* бейджи / эйбрау */
+.section-eyebrow,.hero-eyebrow,.badge,.pricing-badge,.popular-badge{color:#E6E7EA!important;background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.14)!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.hero-eyebrow-dot{background:#fff!important}
+
+/* ВСЕ карточки/блоки: блюр + ховер */
+.glass,.feature-card,.pricing-card,.z-stat-card,.support-card,.video-embed-wrap,.pay-summary,.pay-method,.cab-section,.cab-user{
+  background:rgba(22,22,24,.45)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  backdrop-filter:blur(22px) saturate(120%);-webkit-backdrop-filter:blur(22px) saturate(120%);
+  transition:transform .3s ease,background .3s ease,border-color .3s ease,box-shadow .3s ease!important}
+.glass:hover,.feature-card:hover,.pricing-card:hover,.z-stat-card:hover,.support-card:hover,.video-embed-wrap:hover,.pay-method:hover{
+  background:rgba(34,34,38,.58)!important;
+  border-color:rgba(255,255,255,.22)!important;
+  box-shadow:0 18px 40px -18px rgba(0,0,0,.7)!important;
+  transform:translateY(-3px)}
+.pricing-card.popular,.pricing-card.featured{border-color:rgba(255,255,255,.28)!important}
+.lang-option.active,.nav-auth.logged .nav-auth-avatar{color:#fff!important}
+.nav-auth.logged .nav-auth-avatar{background:rgba(255,255,255,.1)!important}
+.lang-option:hover{background:rgba(255,255,255,.08)!important}
+
+/* слот под скриншот */
+.shot-slot{max-width:960px;width:100%;margin:40px auto 0;padding:10px;border-radius:22px;overflow:hidden;position:relative}
+.shot-slot-lg{margin:0 auto 32px}
+.shot-slot img{display:block;width:100%;height:auto;border-radius:14px}
+.shot-slot.empty{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+.shot-slot.empty::after{content:"Скриншот";color:#6b6b73;font-size:.95rem;letter-spacing:.08em;text-transform:uppercase}
+
+/* попапы: профиль, язык, модалки — блюр */
 .modal-overlay{background:rgba(9,9,11,.38)!important;backdrop-filter:blur(16px) saturate(120%)!important;-webkit-backdrop-filter:blur(16px) saturate(120%)!important}
-.lang-dropdown,.cabinet-modal,.modal{background:rgba(22,22,24,.55)!important;border:1px solid var(--z-line)!important;border-radius:var(--r)!important;backdrop-filter:blur(24px) saturate(120%)!important;-webkit-backdrop-filter:blur(24px) saturate(120%)!important;box-shadow:none!important}
-.lang-btn,.nav-auth{background:rgba(22,22,24,.45)!important;border:1px solid var(--z-line)!important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
-.lang-option:hover{background:rgba(255,255,255,.06)!important}
-.hero-z-btn,.hero-z-btn.btn-primary,.nav-buy,a.btn-primary,button.btn-primary{background:var(--accent)!important;color:#04121c!important}
-.sw-mock{width:min(560px,100%)}
-.sw-mock-lg{width:min(760px,100%)}
-.sw-row{gap:10px}
-/* блюр шапки через псевдоэлемент, чтобы вложенные выпадашки блюрили сами */
+.lang-dropdown,.cabinet-modal,.modal{background:rgba(22,22,24,.55)!important;border:1px solid var(--z-line)!important;border-radius:var(--r)!important;backdrop-filter:blur(24px) saturate(120%)!important;-webkit-backdrop-filter:blur(24px) saturate(120%)!important;box-shadow:none!important;transform:none}
+.modal:hover{transform:none!important}
+.lang-btn,.nav-auth{background:rgba(22,22,24,.45)!important;border:1px solid var(--z-line)!important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:background .25s,border-color .25s,transform .25s}
+.lang-btn:hover,.nav-auth:hover{background:rgba(40,40,44,.6)!important;border-color:rgba(255,255,255,.22)!important}
+
+/* блюр шапки через псевдоэлемент */
 .nav-pill,.navbar.scrolled .nav-pill{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:none!important;position:relative}
 .nav-pill::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:rgba(22,22,24,.45);backdrop-filter:blur(22px) saturate(120%);-webkit-backdrop-filter:blur(22px) saturate(120%)}
 .nav-pill{isolation:auto}
-.btn-primary,.nav-buy,.hero-z-btn{background:#38BDF8!important}
