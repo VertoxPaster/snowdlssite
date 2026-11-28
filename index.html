@@ -31,8 +31,11 @@
     </ul>
 
     <span class="nav-logo nav-logo-center" onclick="scrollTo({top:0,behavior:'smooth'})" title="SnowClient">
-      <span class="logo-flake"><!-- ЛОГО: положи logo.png рядом с index.html -->
-        <img src="logo.png" alt="SnowClient" class="logo-img" onerror="this.outerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot; stroke-linecap=&quot;round&quot;><path d=&quot;M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7&quot;/></svg>'" />
+      <span class="logo-flake">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
+          <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
+        </svg>
       </span>
     </span>
 
@@ -50,7 +53,7 @@
 
       <button class="nav-auth magnetic" id="navAuth" type="button" onclick="onAuthClick()">
         <span class="nav-auth-avatar" id="navAuthAvatar">
-          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M8.500 3.500h7l1 1v6l-1 1h-7l-1-1v-6z"/><path d="M4 20.500v-3l2.500-2.500h11l2.500 2.500v3"/><path d="M10 7h1.500M12.500 7H14" stroke-width="2"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </span>
         <span class="nav-auth-text">
           <span class="nav-auth-name" id="navAuthName" data-i18n="navLogin">Войти</span>
@@ -136,7 +139,7 @@
     <div class="z-stats-top reveal">
       <div class="z-stat-card glass spot">
         <div class="z-stat-ico">
-          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M12 2.5l8.5 4.8v9.4L12 21.500l-8.500-4.800V7.300z"/><path d="M3.500 7.300L12 12l8.500-4.700M12 12v9.500"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
         </div>
         <div>
           <div class="z-stat-lbl">Версия игры</div>
@@ -146,7 +149,7 @@
 
       <div class="z-stat-card glass spot">
         <div class="z-stat-ico">
-          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M8.500 3.500h7l1 1v6l-1 1h-7l-1-1v-6z"/><path d="M4 20.500v-3l2.500-2.500h11l2.500 2.500v3"/><path d="M10 7h1.500M12.500 7H14" stroke-width="2"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         </div>
         <div>
           <div class="z-stat-lbl">Аккаунтов</div>
@@ -156,7 +159,7 @@
 
       <div class="z-stat-card glass spot">
         <div class="z-stat-ico">
-          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M5 3h14l2 2v14l-2 2H5l-2-2V5z"/><path d="M10 8.200v7.600l6-3.800z" fill="currentColor"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
         </div>
         <div>
           <div class="z-stat-lbl">Запусков клиента</div>
@@ -187,15 +190,15 @@
 
         <div class="video-bullets">
           <div class="video-bullet">
-            <div class="video-bullet-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></div>
+            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
             <span class="video-bullet-text" data-i18n="videoBullet1">Реальный геймплей без монтажа</span>
           </div>
           <div class="video-bullet">
-            <div class="video-bullet-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></div>
+            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
             <span class="video-bullet-text" data-i18n="videoBullet2">Показ всех ключевых функций и ротаций</span>
           </div>
           <div class="video-bullet">
-            <div class="video-bullet-icon"><svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M5 12.500l4.500 4.500L19 7.500"/></svg></div>
+            <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
             <span class="video-bullet-text" data-i18n="videoBullet3">Настройка интерфейса и конфигов в деталях</span>
           </div>
         </div>
@@ -270,7 +273,10 @@
 
       <a class="support-card spot reveal reveal-d1" id="supportEmailCard" href="#">
         <div class="support-icon">
-          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M5 5h14l2 2v10l-2 2H5l-2-2V7z"/><path d="M3.500 7.500L12 13.500l8.500-6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+            <rect x="2" y="4" width="20" height="16" rx="2.5"/>
+            <path d="M2 7l10 7 10-7"/>
+          </svg>
         </div>
         <div class="support-label" data-i18n="supportEmail">Почта для связи</div>
         <div class="support-value" id="supportEmailVal"></div>
@@ -279,7 +285,10 @@
 
       <a class="support-card spot reveal reveal-d2" id="supportDiscordCard" href="#" target="_blank" rel="noopener">
         <div class="support-icon">
-          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M4 4h16l1 1v11l-1 1h-9l-4.500 4v-4H4l-1-1V5z"/><path d="M8 9h2v2H8zM14 9h2v2h-2z" fill="currentColor" stroke="none"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11.5a1 1 0 100 2 1 1 0 000-2zm6 0a1 1 0 100 2 1 1 0 000-2z"/>
+            <path d="M19.27 5.33A17.75 17.75 0 0014.94 4c-.18.33-.38.77-.52 1.12a16.36 16.36 0 00-4.84 0A11.2 11.2 0 009.06 4 17.8 17.8 0 004.73 5.33C2.02 9.46 1.27 13.48 1.65 17.45A17.87 17.87 0 007.1 20c.42-.57.79-1.17 1.11-1.81a11.6 11.6 0 01-1.74-.84l.42-.33a12.73 12.73 0 0010.22 0l.43.33c-.55.33-1.14.61-1.75.84.32.64.69 1.24 1.11 1.81a17.83 17.83 0 005.45-2.55c.44-4.53-.75-8.52-3.08-12.17z"/>
+          </svg>
         </div>
         <div class="support-label" data-i18n="supportDiscord">Discord</div>
         <div class="support-value">Discord Server</div>
@@ -287,7 +296,10 @@
 
       <a class="support-card spot reveal reveal-d3" id="supportTelegramCard" href="#" target="_blank" rel="noopener">
         <div class="support-icon">
-          <svg class="gi" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="miter" stroke-linecap="square" aria-hidden="true"><path d="M21 3L3 10.500l6 2.500 2 6.500 3.200-4.200 4.300 3.200z"/><path d="M9 13L21 3"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.5 3.5L2.5 10.5l6.5 2 2 6.5 3-4 5.5 4z"/>
+            <path d="M9 12.5l9-9"/>
+          </svg>
         </div>
         <div class="support-label" data-i18n="supportTelegram">Telegram</div>
         <div class="support-value">Telegram Channel</div>
