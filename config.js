@@ -173,12 +173,12 @@ const CONFIG = {
   // ─── СИСТЕМА ОПЛАТЫ ──────────────────────────────────────
 // ─── СИСТЕМА ОПЛАТЫ ──────────────────────────────────────
   payment: {
-    funpayUrl: "https://funpay.com/lots/offer?id=78533148",
+    funpayUrl: "https://funpay.com/users/9984257/",
     useRedirect: false,
     redirectUrls: {
       month:     "https://funpay.com/lots/offer?id=78533148",
-      "6months": "https://funpay.com/lots/offer?id=78533148",
-      lifetime:  "https://funpay.com/lots/offer?id=78533148"
+      "6months": "https://funpay.com/lots/offer?id=82294942",
+      lifetime:  "https://funpay.com/lots/offer?id=82294178"
     },
     methods: [
       { id: "cryptobot", name: "Crypto Bot", badge: "ВСЕ МОНЕТЫ", badgeColor: "#3f3f46" },
