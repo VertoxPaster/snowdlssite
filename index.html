@@ -7,7 +7,7 @@
   <meta name="description" content="SnowClient — клиент для Minecraft 1.21.11 с обходами GrimAC, Matrix и Vulcan, оптимизацией FPS и кастомным ClickGUI." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Caveat:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="ready">
@@ -30,11 +30,7 @@
       <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
     </ul>
 
-    <span class="nav-logo nav-logo-center" onclick="scrollTo({top:0,behavior:'smooth'})" title="SnowClient">
-      <span class="logo-flake"><!-- ЛОГО: положи logo.png рядом с index.html -->
-        <img src="logo.png" alt="SnowClient" class="logo-img" onerror="this.outerHTML='<svg viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot; stroke-linecap=&quot;round&quot;><path d=&quot;M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7&quot;/></svg>'" />
-      </span>
-    </span>
+    <a class="nav-brand" href="#hero" onclick="scrollTo({top:0,behavior:'smooth'});return false;">SnowClient</a>
 
     <div class="nav-right">
       <div class="lang-selector" id="langSelector">

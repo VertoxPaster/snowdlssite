@@ -2860,3 +2860,8 @@ body{background:#09090b}
 .feature-icon-wrap .gi{width:20px;height:20px}
 .btn .gi-buy,.nav-buy .gi-buy,.hero-z-btn .gi-buy{width:1.15em;height:1.15em;margin-right:8px;vertical-align:-.2em;display:inline-block}
 .nav-buy,.hero-z-btn{display:inline-flex;align-items:center;justify-content:center}
+.nav-pill-zenith{display:flex!important;justify-content:space-between;align-items:center}
+.nav-pill-zenith{position:relative}
+.nav-brand{position:absolute;left:50%;top:50%;transform:translate(-50%,-56%);font-family:'Caveat','Segoe Script','Bradley Hand',cursive;font-weight:700;font-size:2rem;line-height:1;letter-spacing:.01em;color:#fff;text-decoration:none;white-space:nowrap;transition:opacity .25s}
+.nav-brand:hover{opacity:.75}
+@media(max-width:980px){.nav-brand{position:static;transform:none;margin-right:auto;margin-left:12px}}
