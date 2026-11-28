@@ -53,7 +53,7 @@
         <div class="lang-dropdown" id="langDropdown"></div>
       </div>
 
-<button class="nav-auth magnetic" id="navAuth" type="button" onclick="onAuthClick()">
+      <button class="nav-auth magnetic" id="navAuth" type="button" onclick="onAuthClick()">
         <span class="nav-auth-avatar" id="navAuthAvatar">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </span>
@@ -62,7 +62,7 @@
         </span>
       </button>
 
-      <a href="#pricing" class="nav-buy" data-i18n="navBuy">Купить</a>
+      <a href="#pricing" class="nav-buy nav-buy-pill" data-i18n="navBuy">Купить</a>
 
       <button class="hamburger" id="hamburger" onclick="toggleMobileMenu()" aria-label="Меню">
         <span></span><span></span><span></span>
@@ -106,7 +106,7 @@
         </p>
 
         <div class="hero-actions anim-up-4">
-          <a href="#pricing" class="btn btn-primary magnetic" id="heroBtnBuy">
+          <a href="#pricing" class="btn btn-primary magnetic" id="heroBtnBuy" style="border-radius:99px;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
               <line x1="3" y1="6" x2="21" y2="6"/>
@@ -140,7 +140,7 @@
       </div>
 
     </div>
-</div>
+  </div>
 </section>
 
 <!-- ═════ FEATURES ═════ -->
@@ -320,7 +320,6 @@
   <div class="footer-mark" aria-hidden="true">SnowClient</div>
 </footer>
 
-<!-- ═════ MODALS ═════ -->
 <!-- ═════ PAYMENT MODAL ═════ -->
 <div class="modal-overlay" id="modalPayment" onclick="closeModalOutside(event,'modalPayment')">
   <div class="modal glass pay-modal">
@@ -485,6 +484,7 @@
       </button>
     </div>
     <div class="modal-body">
+
       <div class="cab-user">
         <div class="cab-avatar" id="cabAvatar">?</div>
         <div class="cab-user-info">
@@ -503,7 +503,7 @@
         <h4 data-i18n="cabKey">Активация ключа</h4>
         <form class="cab-key" onsubmit="activateKey(event)">
           <input type="text" id="cabKeyInput" class="cab-key-input" autocomplete="off" spellcheck="false" data-ph="cabKeyPh" placeholder="SNW-XXXX-XXXX-XXXX" />
-          <button class="btn btn-primary" id="cabKeyBtn" type="submit"><span class="spinner"></span><span data-i18n="cabActivate">Активировать</span></button>
+          <button class="btn btn-primary" id="cabKeyBtn" type="submit" style="border-radius:99px;"><span class="spinner"></span><span data-i18n="cabActivate">Активировать</span></button>
         </form>
       </div>
 
