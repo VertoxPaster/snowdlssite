@@ -25,7 +25,7 @@
     '    float body=(1.0-smoothstep(-0.50,0.03,w))*exp(min(w,0.0)*1.5)*0.70;',
     '    float edge=exp(-w*w*1400.0)*1.25+exp(-w*w*60.0)*0.30;',
     '    vec3 base=mix(c1,c2,clamp(0.15+0.17*fi,0.0,1.0));',
-    '    vec3 edgeCol=mix(base,vec3(1.0),0.35);',
+    '    vec3 edgeCol=mix(base,vec3(1.0),0.15);',
     '    acc+=base*body*(0.50-0.05*fi)+edgeCol*edge*(0.65-0.06*fi);',
     '  }',
     '  return acc;',
@@ -46,6 +46,7 @@
     '  col*=center;',
     '  float vig=1.0-smoothstep(0.60,1.40,length((uv-0.5)*vec2(1.0,1.1)));',
     '  col*=mix(0.70,1.0,vig);',
+    '  col*=0.42;',
     '  col=1.0-exp(-col*1.75);',
     '  col=pow(col,vec3(0.95));',
     '  col*=p1.x;',
@@ -78,8 +79,8 @@
     p0: gl.getUniformLocation(pr, 'p0'), p1: gl.getUniformLocation(pr, 'p1')
   };
   // цвета ленточек (лавандовый -> светлый), как в меню
-  gl.uniform3f(U.c1, 0.55, 0.47, 0.82);
-  gl.uniform3f(U.c2, 0.90, 0.87, 0.98);
+  gl.uniform3f(U.c1, 0.20, 0.17, 0.30);
+  gl.uniform3f(U.c2, 0.38, 0.35, 0.48);
 
   var SCALE = 0.6; // рендер в пониженном разрешении, фон и так мягкий
   function resize() {
