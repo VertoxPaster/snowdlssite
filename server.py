@@ -1,2259 +1,2858 @@
-import base64
-import calendar
-import hashlib
-import hmac
-import http.server
-import math
-import struct
-import json
-import mimetypes
-import os
-import re
-import secrets
-import threading
-import psycopg2
-import psycopg2.extras
-import psycopg2.errors
-import psycopg2.pool
-import sys
-import traceback
-import time
-import urllib.request
-import urllib.parse
-import urllib.error
-from urllib.parse import urlsplit, unquote
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+/* ============================================================
+   SNOWCLIENT — STYLESHEET  v8.0  (deep obsidian · full glass blur)
+   Обсидиан · Холодный синий · Тотальный блюр поверх шейдера
+   ============================================================ */
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
-TRUST_PROXY = os.environ.get("TRUST_PROXY", "0") == "1"  # 1 только если перед сервером стоит доверенный reverse-proxy
-DATABASE_URL = os.environ["DATABASE_URL"]
-PORT = int(os.environ.get("PORT", "8080"))
-MAX_JSON = 64 * 1024
-MAX_UPLOAD = 3 * 1024 * 1024
-UPLOAD_PATHS = ("/api/profile/me/avatar", "/api/profile/me/cover")
-MIN_PW, MAX_PW = 8, 128
-LOADER_TTL = 300  # 5 минут, одноразовый токен
-TERMS_VERSION = "2026-11-24"
-# Токен лоадера (scope='loader') может вызывать только скачивание лоадера и обмен сессии
-LOADER_ALLOWED = {
-    ("GET", "/api/loader/download"),
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary:         #E6E7EA;
+  --primary-light:   #FFFFFF;
+  --primary-dark:    #FFFFFF;
+  --secondary:       #B4B7BF;
+  --accent:          #D4D6DC;
+  --bg:              #050505;
+  --bg-card:         rgba(13, 13, 14, 0.58);
+  --bg-card-hover:   rgba(22, 22, 24, 0.7);
+  --text:            #F3F3F4;
+  --text-muted:      #8B8B93;
+  --border:          rgba(255, 255, 255, 0.07);
+  --border-light:    rgba(255, 255, 255, 0.12);
+  --success:         #22C55E;
+  --danger:          #F87171;
+  --on-primary:     #0A0A0B;
+  --glow:            rgba(255, 255, 255, 0.1);
+  --blur:            blur(18px) saturate(135%);
+  --blur-heavy:      blur(24px) saturate(145%);
+  --font:            'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono:            ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --spring:          cubic-bezier(0.22, 1, 0.36, 1);
+  --ease:            cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:        cubic-bezier(0.22, 1, 0.36, 1);
+  --transition:      0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-fast: 0.16s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-_db_lock = threading.RLock()
-_pool = psycopg2.pool.ThreadedConnectionPool(1, 8, DATABASE_URL)
-_pool_sem = threading.BoundedSemaphore(8)
-
-
-def _run(sql, params=(), want_rows=True):
-    with _pool_sem:
-        return _run_inner(sql, params, want_rows)
-
-
-def _run_inner(sql, params=(), want_rows=True):
-    sql = sql.replace("?", "%s")
-    last = None
-    for attempt in range(2):
-        conn = _pool.getconn()
-        try:
-            conn.autocommit = True
-            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute(sql, params)
-                rows = cur.fetchall() if (want_rows and cur.description) else []
-            _pool.putconn(conn)
-            return rows
-        except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
-            last = e
-            _pool.putconn(conn, close=True)
-        except Exception:
-            _pool.putconn(conn)
-            raise
-    raise last
-
-
-def _db(sql, params=()):
-    return _run(sql, params)
-
-
-def _db1(sql, params=()):
-    rows = _db(sql, params)
-    return rows[0] if rows else None
-
-
-def _exec_script(script):
-    for stmt in [x.strip() for x in script.split(";") if x.strip()]:
-        _run(stmt, (), False)
-
-
-def init_db():
-    _exec_script(
-        """
-        CREATE TABLE IF NOT EXISTS users(
-            id SERIAL PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            pass_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'user',
-            balance DOUBLE PRECISION NOT NULL DEFAULT 0,
-            total_deposits DOUBLE PRECISION NOT NULL DEFAULT 0,
-            total_purchases DOUBLE PRECISION NOT NULL DEFAULT 0,
-            display_name TEXT DEFAULT '',
-            bio TEXT DEFAULT '',
-            avatar TEXT DEFAULT '',
-            cover TEXT DEFAULT '',
-            ref_code TEXT,
-            ref_uses INTEGER NOT NULL DEFAULT 0,
-            ref_earned DOUBLE PRECISION NOT NULL DEFAULT 0,
-            hwid TEXT DEFAULT '',
-            hwid_bound_at TEXT DEFAULT '',
-            created_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS tokens(
-            token TEXT PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            created_at TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS inventory(
-            user_id INTEGER NOT NULL,
-            cosmetic_id INTEGER NOT NULL,
-            active INTEGER NOT NULL DEFAULT 0,
-            granted_at TEXT NOT NULL,
-            PRIMARY KEY(user_id, cosmetic_id)
-        );
-        CREATE TABLE IF NOT EXISTS purchases(
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL,
-            product_id INTEGER NOT NULL,
-            title TEXT,
-            price DOUBLE PRECISION NOT NULL DEFAULT 0,
-            source TEXT NOT NULL DEFAULT 'buy',
-            purchased_at TEXT NOT NULL,
-            expires_at TEXT
-        );
-        CREATE TABLE IF NOT EXISTS keys(
-            key TEXT PRIMARY KEY,
-            product_id INTEGER NOT NULL,
-            created_by INTEGER,
-            used_by INTEGER,
-            used_at TEXT,
-            created_at TEXT NOT NULL
-        );
-        """
-    )
-
-
-def _pbkdf2(pw, salt, it):
-    return hashlib.pbkdf2_hmac("sha256", pw.encode(), salt.encode(), it).hex()
-
-
-def hash_password(pw):
-    salt = secrets.token_hex(16)
-    return "i600000$%s$%s" % (salt, _pbkdf2(pw, salt, 600000))
-
-
-def check_password(pw, stored):
-    try:
-        if stored.startswith("i"):
-            it, salt, h = stored.split("$", 2)
-            return secrets.compare_digest(_pbkdf2(pw, salt, int(it[1:])), h)
-        salt, h = stored.split("$", 1)
-        return secrets.compare_digest(_pbkdf2(pw, salt, 60000), h)
-    except ValueError:
-        return False
-
-
-_DUMMY = {}
-
-
-def _dummy_hash():
-    # одинаковое время ответа для существующего и несуществующего пользователя
-    if "h" not in _DUMMY:
-        _DUMMY["h"] = hash_password(secrets.token_hex(8))
-    return _DUMMY["h"]
-
-
-def _th(token):
-    """В БД хранится только SHA-256 токена: утечка таблицы tokens не даёт войти в аккаунты."""
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def now_iso():
-    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + ".000Z"
-
-
-def has_active_subscription(u):
-    if not u:
-        return False
-    if u.get("role") in ("admin", "beta_tester", "moderator"):
-        return True
-    row = _db1(
-        "SELECT id FROM purchases WHERE user_id=? AND (expires_at IS NULL OR expires_at='') LIMIT 1",
-        (u["id"],),
-    )
-    if row:
-        return True
-    row_exp = _db1(
-        "SELECT id FROM purchases WHERE user_id=? AND expires_at > ? LIMIT 1",
-        (u["id"], now_iso()),
-    )
-    return bool(row_exp)
-
-
-def user_json(u):
-    name = u["username"]  # отображаемое имя всегда равно нику и не редактируется
-    hwid_val = (u.get("hwid") or "").strip()
-    return {
-        "id": u["id"],
-        "username": u["username"],
-        "display_name": name,
-        "displayName": name,
-        "email": u["email"],
-        "role": u["role"],
-        "balance": u["balance"],
-        "totalDeposits": u["total_deposits"],
-        "totalPurchases": u["total_purchases"],
-        "avatar": u["avatar"],
-        "avatar_url": u["avatar"],
-        "cover": u["cover"],
-        "bio": u["bio"],
-        "hwid": hwid_val,
-        "hwid_bound_at": u.get("hwid_bound_at") or "",
-        "has_subscription": has_active_subscription(u),
-        "launch_count": int(u.get("launch_count") or 0),
-        "last_launch_at": u.get("last_launch_at") or "",
-        "is_blocked": False,
-        "isBlocked": False,
-        "is_verified": False,
-        "created_at": u["created_at"],
-        "presence": {"status": "online", "mode": "online", "online": True},
-        "friendship_status": None,
-    }
-
-
-def public_user_json(u):
-    d = user_json(u)
-    for k in ("email", "balance", "totalDeposits", "totalPurchases", "hwid", "hwid_bound_at",
-              "ref_code", "ref_uses", "ref_earned", "has_subscription", "is_blocked", "isBlocked",
-              "launch_count", "last_launch_at"):
-        d.pop(k, None)
-    return d
-
-
-def get_user_by_id(uid):
-    return _db1("SELECT * FROM users WHERE id=?", (uid,))
-
-
-TOKEN_TTL = 30 * 86400
-ADMIN_MFA_TTL = 8 * 3600
-
-
-def get_user_by_token(token):
-    if not token or len(token) > 128:
-        return None
-    token = _th(token)
-    row = _db1("SELECT user_id,created_at,mfa_at,scope FROM tokens WHERE token=?", (token,))
-    if not row:
-        return None
-    try:
-        born = calendar.timegm(time.strptime(row["created_at"][:19], "%Y-%m-%dT%H:%M:%S"))
-    except ValueError:
-        born = 0
-    ttl = TOKEN_TTL if row["scope"] == "web" else LOADER_TTL
-    if time.time() - born > ttl:
-        _db("DELETE FROM tokens WHERE token=?", (token,))
-        return None
-    u = get_user_by_id(row["user_id"])
-    if not u or u["banned"]:
-        return None
-    u = dict(u)
-    u["_token"], u["_mfa_at"], u["_scope"] = token, float(row["mfa_at"] or 0), row["scope"]
-    return u
-
-
-_products_cache = {"t": 0, "data": None}
-_cosmetics_cache = {"t": 0, "data": None}
-
-
-
-def fetch_products():
-    return [
-        {"id": 1, "slug": "month",    "title": "SnowClient — 30 Дней",   "price": 180, "duration": 30},
-        {"id": 2, "slug": "3months",  "title": "SnowClient — 3 Месяца",  "price": 340, "duration": 90},
-        {"id": 3, "slug": "6months",  "title": "SnowClient — 6 Месяцев", "price": 570, "duration": 180},
-        {"id": 4, "slug": "lifetime", "title": "SnowClient — Навсегда",  "price": 800, "duration": None},
-        {"id": 5, "slug": "hwid",     "title": "Сброс HWID",             "price": 149, "duration": None, "type": "hwid_reset"},
-    ]
-
-
-def find_product(pid):
-    if isinstance(pid, str):
-        s = pid.strip().lower()
-        for p in fetch_products():
-            if p.get("slug") == s:
-                return p
-    try:
-        num_id = int(pid or 0)
-    except (TypeError, ValueError):
-        return None
-    for p in fetch_products():
-        if int(p.get("id") or 0) == num_id:
-            return p
-    return None
-
-def find_cosmetic(cid):
-    try:
-        cid = int(cid or 0)
-    except (TypeError, ValueError):
-        return None
-    for c in fetch_cosmetics():
-        if int(c.get("id") or 0) == cid:
-            return c
-    return None
-
-
-EXPIRED_TS = "1970-01-01T00:00:00.000Z"
-
-
-def is_hwid_reset(product):
-    return (product or {}).get("type") == "hwid_reset"
-
-
-def reset_user_hwid(user_id):
-    _db("UPDATE users SET hwid='', hwid_bound_at='' WHERE id=?", (user_id,))
-
-
-def grant_product(user_id, product, source):
-    if is_hwid_reset(product):
-        # Сброс HWID — НЕ подписка: пишем в историю уже «истёкшую» запись (иначе expires_at=NULL
-        # означал бы Lifetime) и сбрасываем привязку к ПК.
-        reset_user_hwid(user_id)
-        _db(
-            "INSERT INTO purchases(user_id,product_id,title,price,source,purchased_at,expires_at)"
-            " VALUES(?,?,?,?,?,?,?)",
-            (user_id, int(product.get("id") or 0), product.get("title") or "Сброс HWID",
-             float(product.get("price") or 0), source, now_iso(), EXPIRED_TS),
-        )
-        return
-    title = (product or {}).get("title") or "Подписка SnowClient"
-    price = float((product or {}).get("price") or 0)
-    duration = (product or {}).get("duration")
-    expires = None
-    if duration:
-        expires = time.strftime(
-            "%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() + int(duration) * 86400)
-        ) + ".000Z"
-    _db(
-        "INSERT INTO purchases(user_id,product_id,title,price,source,purchased_at,expires_at)"
-        " VALUES(?,?,?,?,?,?,?)",
-        (user_id, int((product or {}).get("id") or 0), title, price, source, now_iso(), expires),
-    )
-    role = (product or {}).get("grant_role")
-    if role in ("beta_tester", "moderator"):
-        _db("UPDATE users SET role=? WHERE id=?", (role, user_id))
-
-
-def get_balance(user_id):
-    row = _db1("SELECT balance,total_deposits,total_purchases FROM users WHERE id=?", (user_id,))
-    if not row:
-        return 0.0, 0.0, 0.0
-    return float(row["balance"]), float(row["total_deposits"]), float(row["total_purchases"])
-
-
-# ---------------------------------------------------------------- handlers
-
-ROUTES = {}
-PREFIX_ROUTES = []
-PROXY_PUBLIC_GET = ("/api/cosmetics/", "/api/products", "/api/public/")
-
-
-def route(method, path):
-    def deco(fn):
-        ROUTES[(method, path)] = fn
-        return fn
-
-    return deco
-
-
-def proute(method, pattern):
-    def deco(fn):
-        PREFIX_ROUTES.append((method, re.compile(pattern), fn))
-        return fn
-
-    return deco
-
-
-def require(user):
-    return user is not None
-
-
-def add_balance(uid, amount, deposit=True):
-    if deposit:
-        _db(
-            "UPDATE users SET balance=balance+?, total_deposits=total_deposits+? WHERE id=?",
-            (amount, amount, uid),
-        )
-    else:
-        _db("UPDATE users SET balance=balance+? WHERE id=?", (amount, uid))
-
-
-# ---------------------------------------------------------------- LAUNCHER API (HWID BINDING)
-
-# ---------------------------------------------------------------- LAUNCHER API (HWID BINDING)
-
-def _client_hashes() -> dict:
-    stub_h = os.environ.get("STUB_SHA256", "").strip().lower()
-    pak_h = os.environ.get("PAK_SHA256", "").strip().lower()
-    dll_h = os.environ.get("DLL_SHA256", "").strip().lower()
-    manifest_path = os.path.join(ROOT, "manifest.json")
-    if (not stub_h or not pak_h) and os.path.isfile(manifest_path):
-        try:
-            with open(manifest_path, "r", encoding="utf-8") as f:
-                m = json.load(f)
-            stub_h = stub_h or str(m.get("stubSha256") or "").strip().lower()
-            pak_h = pak_h or str(m.get("pakSha256") or "").strip().lower()
-            dll_h = dll_h or str(m.get("dllSha256") or "").strip().lower()
-        except Exception:
-            pass
-    return {
-        "stub_sha256": stub_h,
-        "pak_sha256": pak_h,
-        "dll_sha256": dll_h,
-    }
-
-
-def _bind_or_verify_hwid(user_id: int, hwid: str) -> bool:
-    bound = _db1(
-        "UPDATE users SET hwid=?, hwid_bound_at=? WHERE id=? AND (hwid IS NULL OR hwid='') RETURNING hwid",
-        (hwid, now_iso(), user_id),
-    )
-    if bound:
-        return True
-    row = _db1("SELECT hwid FROM users WHERE id=?", (user_id,))
-    saved_hwid = ((row or {}).get("hwid") or "").strip()
-    return bool(saved_hwid) and secrets.compare_digest(saved_hwid, hwid)
-
-
-def note_launch(user_id: int) -> None:
-    """+1 к счётчику запусков клиента (вызывается только после успешной проверки логина, подписки и HWID)."""
-    _db("UPDATE users SET launch_count=launch_count+1, last_launch_at=? WHERE id=?", (now_iso(), user_id))
-
-
-def make_key_envelope(hwid: str, nonce_hex: str) -> str:
-    master_key = bytes.fromhex(os.environ["MOD_MASTER_KEY"])
-    transport_key = bytes.fromhex(os.environ["DLL_TRANSPORT_KEY"])
-
-    msg = f"{hwid}:{nonce_hex}".encode("utf-8")
-    wrap_key = hmac.new(transport_key, msg, hashlib.sha256).digest()
-
-    iv = os.urandom(12)
-    aad = nonce_hex.encode("utf-8")
-    ct_and_tag = AESGCM(wrap_key).encrypt(iv, master_key, aad)
-
-    ciphertext = ct_and_tag[:-16]
-    tag = ct_and_tag[-16:]
-    envelope = iv + tag + ciphertext
-    return base64.b64encode(envelope).decode("ascii")
-
-
-@route("POST", "/api/launcher/auth")
-def launcher_auth(h, body, user):
-    if not isinstance(body, dict):
-        return h.json_out({"status": "error", "message": "Некорректный формат запроса"}, 400)
-
-    ident = str(body.get("username") or body.get("email") or "").strip()
-    password = str(body.get("password") or "")
-    hwid = str(body.get("hwid") or "").strip()
-    nonce = str(body.get("nonce") or "").strip().lower()
-
-    if not ident or not password:
-        return h.json_out({"status": "error", "message": "Введите логин и пароль"}, 400)
-    if not hwid or len(hwid) < 4 or len(hwid) > 128:
-        return h.json_out({"status": "error", "message": "Некорректный HWID устройства"}, 400)
-    if not re.fullmatch(r"[0-9a-f]{32}", nonce):
-        return h.json_out({"status": "error", "message": "Некорректный nonce сессии"}, 400)
-    if len(password) > MAX_PW or len(ident) > 254:
-        return h.json_out({"status": "error", "message": "Неверный логин или пароль"}, 401)
-
-    k_ip = "lnc_ip:" + h.client_ip()
-    k_id = "lnc_id:" + ident.lower()
-    if throttled(k_ip, 25, 900) or throttled(k_id, 10, 900):
-        return h.json_out({"status": "error", "message": "Слишком много попыток. Подождите 15 минут"}, 429)
-
-    u = _db1(
-        "SELECT * FROM users WHERE lower(username)=lower(?) OR lower(email)=lower(?)",
-        (ident, ident),
-    )
-    pw_ok = check_password(password, u["pass_hash"] if u else _dummy_hash())
-    if not u or not pw_ok:
-        note_fail(k_ip)
-        note_fail(k_id)
-        return h.json_out({"status": "error", "message": "Неверный логин или пароль"}, 401)
-
-    if u["banned"]:
-        return h.json_out({"status": "error", "message": "Аккаунт заблокирован"}, 403)
-
-    if not has_active_subscription(u):
-        return h.json_out({"status": "error", "message": "Нет активной подписки. Оформите на сайте"}, 403)
-
-    if not _bind_or_verify_hwid(u["id"], hwid):
-        return h.json_out(
-            {"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"},
-            403,
-        )
-
-    note_launch(u["id"])
-    return h.json_out({
-        "status": "ok",
-        "username": u["username"],
-        "role": u["role"],
-        "key_envelope": make_key_envelope(hwid, nonce),
-        **_client_hashes(),
-    })
-
-
-@route("POST", "/api/launcher/web-session")
-def launcher_web_session(h, body, user):
-    if not isinstance(body, dict):
-        return h.json_out({"status": "error", "message": "Некорректный формат запроса"}, 400)
-
-    token = str(body.get("token") or "").strip()
-    hwid = str(body.get("hwid") or "").strip()
-    nonce = str(body.get("nonce") or "").strip().lower()
-
-    u = user or get_user_by_token(token)
-    if not u:
-        return h.json_out({"status": "error", "message": "Сессия сайта недействительна"}, 401)
-    if not hwid or len(hwid) < 4 or len(hwid) > 128:
-        return h.json_out({"status": "error", "message": "Некорректный HWID устройства"}, 400)
-    if not re.fullmatch(r"[0-9a-f]{32}", nonce):
-        return h.json_out({"status": "error", "message": "Некорректный nonce сессии"}, 400)
-    if u["banned"]:
-        return h.json_out({"status": "error", "message": "Аккаунт заблокирован"}, 403)
-    if not has_active_subscription(u):
-        return h.json_out({"status": "error", "message": "Нет активной подписки"}, 403)
-
-    # Одноразовый loader-токен сгорает сразу при обмене на игровую сессию
-    if u.get("_scope") == "loader":
-        burned = _db1("DELETE FROM tokens WHERE token=? AND scope='loader' RETURNING token", (u["_token"],))
-        if not burned:
-            return h.json_out({"status": "error", "message": "Токен уже использован"}, 401)
-
-    if not _bind_or_verify_hwid(u["id"], hwid):
-        return h.json_out({"status": "error", "message": "Аккаунт привязан к другому ПК (HWID mismatch)"}, 403)
-
-    note_launch(u["id"])
-    return h.json_out({
-        "status": "ok",
-        "username": u["username"],
-        "role": u["role"],
-        "key_envelope": make_key_envelope(hwid, nonce),
-        **_client_hashes(),
-    })
-
-_pub_stats = {"t": 0, "data": None}
-
-
-@route("GET", "/api/public/stats")
-def public_stats(h, body, user):
-    now = time.time()
-    if not _pub_stats["data"] or now - _pub_stats["t"] > 30:
-        r = _db1("SELECT COUNT(*) AS users, COALESCE(SUM(launch_count),0) AS launches FROM users")
-        _pub_stats["data"] = {"users": int(r["users"]), "launches": int(r["launches"])}
-        _pub_stats["t"] = now
-    return h.json_out({"success": True, "data": _pub_stats["data"]})
-
-
-@route("GET", "/api/loader/download")
-def loader_download(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Сначала войдите в аккаунт"}, 401)
-    if not has_active_subscription(user):
-        return h.json_out({"message": "Для скачивания клиента нужна активная подписка"}, 403)
-
-    ext_url = os.environ.get("LOADER_URL", "").strip()
-    want_json = "application/json" in (h.headers.get("Accept") or "")
-
-    if ext_url:
-        if want_json:
-            return h.json_out({"success": True, "url": ext_url, "filename": "SnowClient.exe"})
-        h.send_response(302)
-        h.send_header("Location", ext_url)
-        h.end_headers()
-        return
-
-    local_exe = os.path.join(ROOT, "static", "SnowClient.exe")
-    if os.path.isfile(local_exe):
-        if want_json:
-            return h.json_out({"success": True, "direct": True, "filename": "SnowClient.exe"})
-        size = os.path.getsize(local_exe)
-        h.send_response(200)
-        h.send_header("Content-Type", "application/octet-stream")
-        h.send_header("Content-Disposition", 'attachment; filename="SnowClient.exe"')
-        h.send_header("Content-Length", str(size))
-        h.end_headers()
-        with open(local_exe, "rb") as f:
-            while True:
-                chunk = f.read(65536)
-                if not chunk:
-                    break
-                h.wfile.write(chunk)
-        return
-
-    return h.json_out({
-        "message": "Файл клиента ещё не загружен на сервер (добавьте static/SnowClient.exe или LOADER_URL)"
-    }, 404)
-
-
-# ---------------------------------------------------------------- AUTH & SITE API
-
-@route("POST", "/api/auth/register")
-def auth_register(h, body, user):
-    username = str(body.get("username") or "").strip()
-    email = str(body.get("email") or "").strip().lower()
-    password = str(body.get("password") or "")
-    if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", username):
-        return h.json_out({"message": "Ник: 3-20 символов (латиница, цифры, _)"}, 400)
-    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-        return h.json_out({"message": "Некорректный email"}, 400)
-    if len(email) > 254:
-        return h.json_out({"message": "Некорректный email"}, 400)
-    if len(password) < MIN_PW or len(password) > MAX_PW:
-        return h.json_out({"message": "Пароль: от %d до %d символов" % (MIN_PW, MAX_PW)}, 400)
-    if body.get("acceptTerms") is not True:
-        return h.json_out({"message": "Необходимо принять пользовательское соглашение"}, 400)
-    if throttled("reg:" + h.client_ip(), 5, 3600):
-        return h.json_out({"message": "Слишком много регистраций, попробуйте позже"}, 429)
-    note_fail("reg:" + h.client_ip())
-    if _db1("SELECT id FROM users WHERE lower(username)=lower(?) OR lower(email)=lower(?)", (username, email)):
-        return h.json_out({"message": "Пользователь с таким ником или email уже существует"}, 400)
-    # Первый админ: нужны и ник, и email из окружения (иначе его мог бы занять первый зашедший)
-    boot_u = os.environ.get("ADMIN_USERNAME", "").lower()
-    boot_e = os.environ.get("ADMIN_EMAIL", "").lower()
-    is_boot = bool(boot_u and boot_e and username.lower() == boot_u and email == boot_e
-                   and not _db1("SELECT 1 FROM users WHERE role='admin'"))
-    role = "admin" if is_boot else "user"
-    try:
-        uid = _db1(
-            "INSERT INTO users(username,email,pass_hash,role,created_at,terms_accepted_at,terms_version)"
-            " VALUES(?,?,?,?,?,?,?) RETURNING id",
-            (username, email, hash_password(password), role, now_iso(), now_iso(), TERMS_VERSION),
-        )["id"]
-    except psycopg2.errors.UniqueViolation:
-        return h.json_out({"message": "Пользователь с таким ником или email уже существует"}, 400)
-    token = secrets.token_hex(32)
-    _db("INSERT INTO tokens(token,user_id,created_at) VALUES(?,?,?)", (_th(token), uid, now_iso()))
-    u = get_user_by_id(uid)
-    return h.json_out({"success": True, "token": token, "user": user_json(u), "data": {"token": token, "user": user_json(u)}})
-
-
-@route("POST", "/api/auth/login")
-def auth_login(h, body, user):
-    password = str(body.get("password") or "")
-    ident = str(body.get("email") or "").strip()
-    if len(password) > MAX_PW or len(ident) > 254:
-        return h.json_out({"message": "Неверный email или пароль"}, 401)
-    u = _db1("SELECT * FROM users WHERE lower(email)=lower(?) OR lower(username)=lower(?)", (ident, ident))
-    k1, k2 = "ip:" + h.client_ip(), "id:" + ident.lower()
-    if throttled(k1, 20) or throttled(k2, 5):
-        return h.json_out({"message": "Слишком много попыток. Подождите 15 минут"}, 429)
-    pw_ok = check_password(password, u["pass_hash"] if u else _dummy_hash())
-    if not u or not pw_ok:
-        note_fail(k1)
-        note_fail(k2)
-        return h.json_out({"message": "Неверный email или пароль"}, 401)
-    if u["banned"]:
-        return h.json_out({"message": "Аккаунт заблокирован"}, 403)
-    if not u["pass_hash"].startswith("i"):
-        _db("UPDATE users SET pass_hash=? WHERE id=?", (hash_password(password), u["id"]))
-    token = secrets.token_hex(32)
-    _db("INSERT INTO tokens(token,user_id,created_at) VALUES(?,?,?)", (_th(token), u["id"], now_iso()))
-    return h.json_out({"success": True, "token": token, "user": user_json(u), "data": {"token": token, "user": user_json(u)}})
-
-
-@route("GET", "/api/auth/me")
-def auth_me(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "data": user_json(user), "user": user_json(user)})
-
-
-@route("POST", "/api/auth/logout")
-def auth_logout(h, body, user):
-    token = h.bearer_token()
-    if token:
-        _db("DELETE FROM tokens WHERE token=?", (_th(token),))
-    return h.json_out({"success": True})
-
-
-@route("POST", "/api/auth/loader-token")
-def loader_token(h, body, user):
-    """Отдельный короткоживущий токен для лоадера: сайтовый токен (30 дней) наружу не отдаём."""
-    if not require(user) or user.get("_scope") != "web":
-        return h.json_out({"message": "Не авторизован"}, 401)
-    if throttled("ltok:%s" % user["id"], 20, 3600):
-        return h.json_out({"message": "Слишком много запросов"}, 429)
-    note_fail("ltok:%s" % user["id"])
-    token = secrets.token_hex(32)
-    _db("DELETE FROM tokens WHERE user_id=? AND scope='loader'", (user["id"],))
-    _db("INSERT INTO tokens(token,user_id,created_at,scope) VALUES(?,?,?,'loader')",
-        (_th(token), user["id"], now_iso()))
-    return h.json_out({"success": True, "token": token, "expires_in": LOADER_TTL})
-
-
-@route("PUT", "/api/auth/password")
-def auth_password(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    cur_pw = str(body.get("currentPassword") or "")
-    new_pw = str(body.get("newPassword") or "")
-    if throttled("pw:%s" % user["id"], 5, 900):
-        return h.json_out({"message": "Слишком много попыток. Подождите 15 минут"}, 429)
-    if len(cur_pw) > MAX_PW or not check_password(cur_pw, user["pass_hash"]):
-        note_fail("pw:%s" % user["id"])
-        return h.json_out({"message": "Текущий пароль неверен"}, 400)
-    if len(new_pw) < MIN_PW or len(new_pw) > MAX_PW:
-        return h.json_out({"message": "Новый пароль: от %d до %d символов" % (MIN_PW, MAX_PW)}, 400)
-    _db("UPDATE users SET pass_hash=? WHERE id=?", (hash_password(new_pw), user["id"]))
-    _db("DELETE FROM tokens WHERE user_id=? AND token<>?", (user["id"], user["_token"]))
-    return h.json_out({"success": True})
-
-
-@route("POST", "/api/auth/telegram/generate-code")
-def tg_generate(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "code": "000000", "data": {"code": "000000"}})
-
-
-@route("GET", "/api/auth/telegram/status")
-def tg_status(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "linked": False, "status": "unlinked", "data": {"linked": False}})
-
-
-@route("DELETE", "/api/auth/telegram/unlink")
-def tg_unlink(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True})
-
-
-@route("POST", "/api/auth/forgot-password")
-def forgot(h, body, user):
-    return h.json_out({"success": True, "method": "email"})
-
-
-@route("GET", "/api/balance")
-def balance_get(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    b, dep, pur = get_balance(user["id"])
-    d = {"balance": b, "totalDeposits": dep, "totalPurchases": pur}
-    return h.json_out({"success": True, "data": dict(d), **d})
-
-
-@route("POST", "/api/balance/purchase-product")
-def purchase_product(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    pid = body.get("productId")
-    prod = find_product(pid)
-    if not prod:
-        return h.json_out({"message": "Товар не найден"}, 400)
-    price = float(prod.get("price") or 0)
-    if is_hwid_reset(prod) and not (user.get("hwid") or "").strip():
-        return h.json_out({"message": "HWID не привязан — сбрасывать нечего"}, 400)
-    ok = _db1(
-        "UPDATE users SET balance=balance-?, total_purchases=total_purchases+?"
-        " WHERE id=? AND balance>=? RETURNING id",
-        (price, price, user["id"], price),
-    )
-    if not ok:
-        b, dep, pur = get_balance(user["id"])
-        return h.json_out(
-            {"message": "Недостаточно средств. Требуется: %.2f ₽, у вас: %.2f ₽" % (price, b)}, 400
-        )
-    grant_product(user["id"], prod, "buy")
-    b, dep, pur = get_balance(user["id"])
-    d = {"balance": b}
-    return h.json_out({"success": True, "message": "Товар успешно приобретен", "data": dict(d), **d})
-
-
-@route("POST", "/api/balance/purchase-cosmetic")
-def purchase_cosmetic(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    cid = body.get("cosmeticId")
-    try:
-        cid = int(cid)
-    except (TypeError, ValueError):
-        return h.json_out({"message": "Некорректный товар"}, 400)
-    if _db1("SELECT 1 FROM inventory WHERE user_id=? AND cosmetic_id=?", (user["id"], cid)):
-        return h.json_out({"message": "Эта косметика уже у вас"}, 400)
-    cos = find_cosmetic(cid)
-    if not cos:
-        return h.json_out({"message": "Косметика не найдена"}, 400)
-    price = float(cos.get("price") or 0)
-    ok = _db1(
-        "UPDATE users SET balance=balance-?, total_purchases=total_purchases+?"
-        " WHERE id=? AND balance>=? RETURNING id",
-        (price, price, user["id"], price),
-    )
-    if not ok:
-        b, dep, pur = get_balance(user["id"])
-        return h.json_out(
-            {"message": "Недостаточно средств. Требуется: %.2f ₽, у вас: %.2f ₽" % (price, b)}, 400
-        )
-    _db(
-        "INSERT INTO inventory(user_id,cosmetic_id,active,granted_at) VALUES(?,?,0,?)"
-        " ON CONFLICT DO NOTHING",
-        (user["id"], cid, now_iso()),
-    )
-    b, dep, pur = get_balance(user["id"])
-    d = {"balance": b}
-    return h.json_out({"success": True, "message": "Косметика приобретена", "data": dict(d), **d})
-
-
-@route("GET", "/api/profile/me")
-def profile_me(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "data": user_json(user), "user": user_json(user)})
-
-
-@route("PATCH", "/api/profile/me")
-def profile_patch(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    # Отображаемое имя и ник менять нельзя (имя = ник)
-    for k in ("display_name", "displayName", "display-name", "username"):
-        if k in body:
-            return h.json_out({"message": "Имя и ник изменить нельзя"}, 403)
-    mapping = {
-        "bio": "bio",
-    }
-    for k, col in mapping.items():
-        if k in body and body[k] is not None:
-            val = str(body[k]).strip()
-            if col == "username":
-                if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", val):
-                    return h.json_out({"message": "Ник: 3-20 символов (латиница, цифры, _)"}, 400)
-                if _db1("SELECT id FROM users WHERE lower(username)=lower(?) AND id<>?", (val, user["id"])):
-                    return h.json_out({"message": "Ник занят"}, 400)
-            if col in ("display_name", "bio"):
-                val = re.sub(r"[\x00-\x1f\x7f\u202a-\u202e\u2066-\u2069]", "", val)
-            if col == "display_name" and len(val) > 32:
-                return h.json_out({"message": "Display Name максимум 32 символа"}, 400)
-            if col == "bio" and len(val) > 500:
-                return h.json_out({"message": "Bio максимум 500 символов"}, 400)
-            try:
-                _db("UPDATE users SET %s=? WHERE id=?" % col, (val, user["id"]))
-            except psycopg2.errors.UniqueViolation:
-                return h.json_out({"message": "Ник занят"}, 400)
-    u = get_user_by_id(user["id"])
-    return h.json_out({"success": True, "data": user_json(u), "user": user_json(u)})
-
-
-def _rm_upload(rel):
-    if rel and rel.startswith("/uploads/local/"):
-        p = os.path.join(ROOT, "uploads", "local", os.path.basename(rel))
-        try:
-            os.remove(p)
-        except OSError:
-            pass
-
-
-def _upload_limited(h, user):
-    if throttled("up:%s" % user["id"], 10, 3600):
-        h.json_out({"message": "Слишком много загрузок, попробуйте позже"}, 429)
-        return True
-    note_fail("up:%s" % user["id"])
-    return False
-
-
-def save_upload(h, body, field):
-    ctype = h.headers.get("Content-Type", "")
-    if not body or "multipart/form-data" not in ctype:
-        return None
-    m = re.search(r'boundary="?([^";]+)"?', ctype)
-    if not m:
-        return None
-    boundary = b"--" + m.group(1).encode()
-    for part in body.split(boundary):
-        if b"Content-Disposition" not in part:
-            continue
-        header, _, data = part.partition(b"\r\n\r\n")
-        if not re.search(rb'name="%s"' % field.encode(), header):
-            continue
-        data = data.rstrip(b"\r\n")
-        if not data:
-            continue
-        if len(data) > 2 * 1024 * 1024:
-            return None
-        if data.startswith(b"\x89PNG\r\n\x1a\n"):
-            ext = ".png"
-        elif data.startswith(b"\xff\xd8\xff"):
-            ext = ".jpg"
-        elif data[:6] in (b"GIF87a", b"GIF89a"):
-            ext = ".gif"
-        elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-            ext = ".webp"
-        else:
-            return None  # не картинка
-        rel = "/uploads/local/%s_%s%s" % (field, secrets.token_hex(8), ext)
-        abs_path = os.path.join(ROOT, "uploads", "local")
-        os.makedirs(abs_path, exist_ok=True)
-        with open(os.path.join(abs_path, os.path.basename(rel)), "wb") as f:
-            f.write(data)
-        return rel
-    return None
-
-
-@route("POST", "/api/profile/me/avatar")
-def profile_avatar(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    if _upload_limited(h, user):
-        return
-    rel = save_upload(h, body, "avatar")
-    if not rel:
-        return h.json_out({"message": "Файл не получен"}, 400)
-    _rm_upload(user["avatar"])
-    _db("UPDATE users SET avatar=? WHERE id=?", (rel, user["id"]))
-    u = get_user_by_id(user["id"])
-    return h.json_out({"success": True, "avatar": rel, "data": {"avatar": rel, "user": user_json(u)}, "user": user_json(u)})
-
-
-@route("DELETE", "/api/profile/me/avatar")
-def profile_avatar_delete(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    _rm_upload(user["avatar"])
-    _db("UPDATE users SET avatar='' WHERE id=?", (user["id"],))
-    u = get_user_by_id(user["id"])
-    return h.json_out({"success": True, "avatar": "", "data": {"avatar": "", "user": user_json(u)}, "user": user_json(u)})
-
-
-@route("POST", "/api/profile/me/cover")
-def profile_cover(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    if _upload_limited(h, user):
-        return
-    rel = save_upload(h, body, "cover")
-    if not rel:
-        return h.json_out({"message": "Файл не получен"}, 400)
-    _rm_upload(user["cover"])
-    _db("UPDATE users SET cover=? WHERE id=?", (rel, user["id"]))
-    u = get_user_by_id(user["id"])
-    return h.json_out({"success": True, "cover": rel, "data": {"cover": rel, "user": user_json(u)}, "user": user_json(u)})
-
-
-@route("PATCH", "/api/profile/me/presence")
-def profile_presence(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    mode = body.get("mode")
-    return h.json_out({"success": True, "mode": mode, "data": {"mode": mode}})
-
-
-@route("GET", "/api/cosmetics/user/my")
-def cosmetics_my(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    rows = _db("SELECT cosmetic_id,active FROM inventory WHERE user_id=? ORDER BY granted_at", (user["id"],))
-    cat = {int(c["id"]): c for c in fetch_cosmetics()}
-    out = []
-    for r in rows:
-        cid = r["cosmetic_id"]
-        c = dict(cat.get(cid) or {"id": cid, "name": "Косметика #%d" % cid, "type": "unknown", "price": 0})
-        c["cosmetic_id"] = cid
-        c["is_active"] = 1 if r["active"] else 0
-        c["activated"] = bool(r["active"])
-        out.append(c)
-    return h.json_out({"success": True, "data": out, "cosmetics": out, "count": len(out)})
-
-
-@proute("PUT", r"^/api/cosmetics/user/(\d+)/(activate|deactivate)$")
-def cosmetics_toggle(h, mo, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    cid, action = int(mo.group(1)), mo.group(2)
-    if not _db1("SELECT 1 FROM inventory WHERE user_id=? AND cosmetic_id=?", (user["id"], cid)):
-        return h.json_out({"message": "Косметика не куплена"}, 404)
-    if action == "activate":
-        cos = find_cosmetic(cid)
-        ctype = (cos or {}).get("type")
-        if ctype:
-            same = [
-                r["cosmetic_id"]
-                for r in _db(
-                    "SELECT i.cosmetic_id FROM inventory i WHERE i.user_id=? AND i.active=1", (user["id"],)
-                )
-                if (find_cosmetic(r["cosmetic_id"]) or {}).get("type") == ctype
-            ]
-            for other in same:
-                _db("UPDATE inventory SET active=0 WHERE user_id=? AND cosmetic_id=?", (user["id"], other))
-        _db("UPDATE inventory SET active=1 WHERE user_id=? AND cosmetic_id=?", (user["id"], cid))
-    else:
-        _db("UPDATE inventory SET active=0 WHERE user_id=? AND cosmetic_id=?", (user["id"], cid))
-    active = 1 if action == "activate" else 0
-    return h.json_out({"success": True, "data": {"id": cid, "is_active": active}})
-
-
-@proute("GET", r"^/api/profile/([^/]+)$")
-def profile_by_name(h, mo, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    uname = unquote(mo.group(1))[:40]
-    target = _db1("SELECT * FROM users WHERE lower(username)=lower(?)", (uname,))
-    if not target:
-        return h.json_out({"message": "Пользователь не найден"}, 404)
-    pj = public_user_json(target)
-    return h.json_out({"success": True, "data": pj, "user": pj})
-
-
-@proute("GET", r"^/api/profile/([^/]+)/inventory$")
-def profile_inventory(h, mo, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    uname = unquote(mo.group(1))[:40]
-    target = _db1("SELECT id FROM users WHERE lower(username)=lower(?)", (uname,))
-    if not target:
-        return h.json_out({"message": "Пользователь не найден"}, 404)
-    rows = _db("SELECT cosmetic_id FROM inventory WHERE user_id=?", (target["id"],))
-    cat = {int(c["id"]): c for c in fetch_cosmetics()}
-    out = [dict(cat.get(r["cosmetic_id"]) or {"id": r["cosmetic_id"], "name": "Косметика #%d" % r["cosmetic_id"]}) for r in rows]
-    return h.json_out({"success": True, "data": out, "count": len(out)})
-
-
-@route("GET", "/api/friends")
-def friends_list(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "data": [], "friends": [], "count": 0})
-
-
-@route("GET", "/api/friends/requests")
-def friends_requests(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "data": [], "requests": [], "incoming": [], "outgoing": [], "count": 0})
-
-
-@route("POST", "/api/friends/requests")
-def friends_add(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "data": {"status": "pending"}})
-
-
-@proute("POST", r"^/api/friends/requests/[^/]+/accept$")
-def friends_accept(h, mo, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True})
-
-
-@proute("DELETE", r"^/api/friends/requests/[^/]+$")
-def friends_reject(h, mo, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True})
-
-
-def _has_paid(uid):
-    return bool(_db1("SELECT 1 FROM purchases WHERE user_id=? AND source IN ('buy','key','pay') LIMIT 1", (uid,)))
-
-
-@route("GET", "/api/daily-bonus/status")
-def daily_status(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    last = float(user["last_daily"] or 0)
-    left = max(0, int(last + 86400 - time.time()))
-    d = {
-        "canClaim": left == 0 and _has_paid(user["id"]),
-        "purchasePrice": 99,
-        "paidOpensRemaining": 0,
-        "timeUntilNext": left * 1000,
-        "cards": [],
-    }
-    return h.json_out({"success": True, "data": dict(d), **d})
-
-
-@route("POST", "/api/daily-bonus/claim")
-def daily_claim(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    if not _has_paid(user["id"]):
-        return h.json_out({"message": "Бонус доступен после первой покупки или активации ключа"}, 403)
-    amt = 5 + secrets.randbelow(46)
-    now = time.time()
-    ok = _db1(
-        "UPDATE users SET balance=balance+?, total_deposits=total_deposits+?, last_daily=?"
-        " WHERE id=? AND last_daily<=? RETURNING id",
-        (amt, amt, now, user["id"], now - 86400),
-    )
-    if not ok:
-        return h.json_out({"message": "Бонус уже получен, приходите позже"}, 400)
-    reward = {
-        "rarity": "common",
-        "displayText": "+%d ₽" % amt,
-        "displayDesc": "Ежедневный бонус",
-        "isBurned": False,
-        "type": "balance",
-        "details": {"amount": amt},
-    }
-    return h.json_out({"success": True, "data": dict(reward), "reward": dict(reward), "claimed": True, "balance": get_balance(user["id"])[0]})
-
-
-@route("POST", "/api/keys/activate")
-def keys_activate(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    key = str(body.get("key") or "").strip().upper()
-    k_u, k_ip = "key_u:%s" % user["id"], "key_ip:" + h.client_ip()
-    if throttled(k_u, 10, 900) or throttled(k_ip, 30, 900):
-        return h.json_out({"message": "Слишком много попыток. Подождите 15 минут"}, 429)
-    if not key or len(key) > 64:
-        return h.json_out({"message": "Ключ недействителен или уже использован"}, 400)
-    # ключ сброса HWID не сжигаем, если сбрасывать нечего
-    peek = _db1("SELECT product_id FROM keys WHERE upper(key)=? AND used_by IS NULL", (key,))
-    if peek and is_hwid_reset(find_product(peek["product_id"])) and not (user.get("hwid") or "").strip():
-        return h.json_out({"message": "HWID не привязан — ключ сброса пока не нужен. Ключ не потрачен"}, 400)
-    # атомарно «забираем» ключ: два одновременных запроса не активируют его дважды
-    row = _db1(
-        "UPDATE keys SET used_by=?, used_at=? WHERE upper(key)=? AND used_by IS NULL RETURNING key, product_id",
-        (user["id"], now_iso(), key),
-    )
-    if not row:
-        note_fail(k_u)
-        note_fail(k_ip)
-        return h.json_out({"message": "Ключ недействителен или уже использован"}, 400)
-    prod = find_product(row["product_id"]) or {"id": row["product_id"], "title": "Подписка SnowClient #%s" % row["product_id"], "price": 0}
-    try:
-        grant_product(user["id"], prod, "key")
-    except Exception:
-        _db("UPDATE keys SET used_by=NULL, used_at=NULL WHERE key=?", (row["key"],))
-        raise
-    product = {"id": prod.get("id"), "title": prod.get("title")}
-    return h.json_out({"success": True, "data": {"product": dict(product)}, "product": dict(product)})
-
-
-@route("GET", "/api/creator-configs/my")
-def creator_cfg(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "hasConfig": False, "data": {"hasConfig": False}})
-
-
-@route("GET", "/api/creator-resource-packs/my")
-def creator_packs(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    return h.json_out({"success": True, "hasPacks": False, "data": {"hasPacks": False}})
-
-
-CRYPTO_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "").strip()
-CRYPTO_API = os.environ.get("CRYPTOBOT_API", "https://pay.crypt.bot/api").rstrip("/")
-CRYPTO_ASSETS = {
-    "cryptobot": "USDT,TON,BTC,ETH,LTC,TRX,USDC",
-    "usdt": "USDT", "ton": "TON", "btc": "BTC", "eth": "ETH",
-    "ltc": "LTC", "trx": "TRX", "usdc": "USDC",
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-
-def crypto_call(method, params=None, post=False):
-    url = CRYPTO_API + "/" + method
-    data = None
-    if post:
-        data = json.dumps(params or {}).encode()
-    elif params:
-        url += "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, data=data, headers={
-        "Crypto-Pay-API-Token": CRYPTO_TOKEN, "Content-Type": "application/json",
-        "Accept": "application/json", "User-Agent": "Mozilla/5.0 (SnowClient/1.0)"})
-    try:
-        with urllib.request.urlopen(req, timeout=10) as r:
-            j = json.loads(r.read().decode())
-    except urllib.error.HTTPError as e:
-        raise RuntimeError("cryptobot HTTP %s: %s" % (e.code, e.read()[:300].decode("utf-8", "replace")))
-    if not j.get("ok"):
-        raise RuntimeError("cryptobot: %s" % j.get("error"))
-    return j["result"]
-
-
-def promo_lookup(code, uid=None):
-    code = str(code or "").strip().upper()[:32]
-    if not code:
-        return None, None
-    p = _db1("SELECT * FROM promocodes WHERE code=?", (code,))
-    if not p or not p["active"]:
-        return None, "Промокод не найден"
-    if p["expires_at"] and p["expires_at"] < now_iso():
-        return None, "Срок действия промокода истёк"
-    if p["max_uses"] and p["uses"] >= p["max_uses"]:
-        return None, "Промокод закончился"
-    if uid and _db1("SELECT 1 FROM promo_uses WHERE code=? AND user_id=?", (code, uid)):
-        return None, "Вы уже использовали этот промокод"
-    return p, None
-
-
-def settle_payment(order_id):
-    """Идемпотентно: подписка выдаётся ровно один раз, даже если статус опрашивают параллельно."""
-    row = _db1("UPDATE payments SET status='paid', paid_at=? WHERE order_id=? AND status='pending' RETURNING *",
-               (now_iso(), order_id))
-    if not row:
-        return False
-    try:
-        prod = dict(find_product(row["product_id"]) or {"id": row["product_id"], "title": "Подписка SnowClient", "duration": None})
-        prod["price"] = row["amount"]
-        grant_product(row["user_id"], prod, "pay")
-    except Exception:
-        _db("UPDATE payments SET status='pending', paid_at=NULL WHERE order_id=?", (order_id,))
-        raise
-    if row["promo"]:
-        d = _db1("SELECT discount FROM promocodes WHERE code=?", (row["promo"],))
-        _db("UPDATE promocodes SET uses=uses+1 WHERE code=?", (row["promo"],))
-        _db("INSERT INTO promo_uses(code,user_id,order_id,discount,amount,used_at) VALUES(?,?,?,?,?,?)",
-            (row["promo"], row["user_id"], order_id, int(d["discount"]) if d else 0, row["amount"], now_iso()))
-    return True
-
-
-@route("POST", "/api/payments/create")
-def payments_create(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Сначала войдите в аккаунт"}, 401)
-    if not CRYPTO_TOKEN:
-        return h.json_out({"message": "Оплата криптой временно недоступна. Используйте FunPay"}, 400)
-    k = "pay:%s" % user["id"]
-    if throttled(k, 10, 600):
-        return h.json_out({"message": "Слишком много попыток, подождите немного"}, 429)
-    note_fail(k)
-    prod = find_product(body.get("planId") or body.get("productId"))
-    if not prod:
-        return h.json_out({"message": "Тариф не найден"}, 400)
-    assets = CRYPTO_ASSETS.get(str(body.get("method") or "cryptobot").strip().lower())
-    if not assets:
-        return h.json_out({"message": "Способ оплаты недоступен"}, 400)
-    price = float(prod.get("price") or 0)
-    promo_code, discount = None, 0
-    if str(body.get("promoCode") or "").strip():
-        p, err = promo_lookup(body.get("promoCode"), user["id"])
-        if not p:
-            return h.json_out({"message": err or "Промокод не найден"}, 400)
-        promo_code, discount = p["code"], int(p["discount"])
-    amount = max(1, int(price * (100 - discount) / 100 + 0.5)) if discount else int(price)
-    order_id = "SNW-" + secrets.token_hex(6).upper()
-    params = {
-        "currency_type": "fiat", "fiat": "RUB", "amount": str(amount),
-        "accepted_assets": assets, "description": prod["title"][:200],
-        "payload": order_id, "expires_in": 3600, "allow_comments": False,
-    }
-    if SITE_URL:
-        params.update({"paid_btn_name": "callback", "paid_btn_url": SITE_URL + "/cabinet"})
-    if "testnet" in CRYPTO_API:
-        params.pop("accepted_assets", None)  # в тестовой сети другой набор монет
-    try:
-        inv = crypto_call("createInvoice", params, post=True)
-    except Exception:
-        traceback.print_exc()
-        return h.json_out({"message": "Не удалось создать счёт, попробуйте позже или купите через FunPay"}, 502)
-    method = str(body.get("method") or "cryptobot").strip().lower()
-    # конкретная монета — страница оплаты в браузере; «Crypto Bot» — ссылка в Telegram
-    if method == "cryptobot":
-        pay_url = inv.get("bot_invoice_url") or inv.get("web_app_invoice_url") or inv.get("pay_url")
-    else:
-        pay_url = inv.get("web_app_invoice_url") or inv.get("bot_invoice_url") or inv.get("pay_url")
-    _db("INSERT INTO payments(order_id,user_id,product_id,amount,promo,invoice_id,created_at) VALUES(?,?,?,?,?,?,?)",
-        (order_id, user["id"], int(prod["id"]), amount, promo_code, inv["invoice_id"], now_iso()))
-    return h.json_out({"success": True, "orderId": order_id, "amount": amount,
-                       "payUrl": pay_url})
-
-
-@proute("GET", r"^/api/payments/([A-Za-z0-9-]{1,40})$")
-def payments_status(h, mo, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    row = _db1("SELECT * FROM payments WHERE order_id=? AND user_id=?", (mo.group(1), user["id"]))
-    if not row:
-        return h.json_out({"message": "Заказ не найден"}, 404)
-    status = row["status"]
-    if status == "pending":
-        try:
-            res = crypto_call("getInvoices", {"invoice_ids": str(row["invoice_id"])})
-            items = res.get("items", []) if isinstance(res, dict) else res
-            st = items[0]["status"] if items else "active"
-            if st == "paid":
-                settle_payment(row["order_id"])
-                status = "paid"
-            elif st == "expired":
-                _db("UPDATE payments SET status='expired' WHERE order_id=? AND status='pending'", (row["order_id"],))
-                status = "expired"
-        except Exception:
-            traceback.print_exc()
-    return h.json_out({"success": True, "status": status, "paid": status == "paid"})
-
-
-@route("POST", "/api/orders/check-promo")
-def check_promo(h, body, user):
-    k = "promo:" + h.client_ip()
-    if throttled(k, 30, 600):
-        return h.json_out({"message": "Слишком много попыток"}, 429)
-    p, err = promo_lookup(body.get("code"), user["id"] if user else None)
-    if not p:
-        note_fail(k)
-        return h.json_out({"success": True, "valid": False, "discount": 0, "message": err or "Промокод не найден"})
-    d = int(p["discount"])
-    return h.json_out({"success": True, "valid": True, "discount": d, "data": {"valid": True, "discount": d}})
-
-
-@route("GET", "/api/users/products")
-def users_products(h, body, user):
-    if not require(user):
-        return h.json_out({"message": "Не авторизован"}, 401)
-    rows = _db("SELECT * FROM purchases WHERE user_id=? ORDER BY purchased_at DESC", (user["id"],))
-    out = [
-        {
-            "id": r["id"],
-            "product_id": r["product_id"],
-            "title": r["title"],
-            "price": r["price"],
-            "source": r["source"],
-            "purchased_at": r["purchased_at"],
-            "expires_at": r["expires_at"],
-        }
-        for r in rows
-    ]
-    return h.json_out({"success": True, "data": out, "count": len(out)})
-
-
-@route("POST", "/api/presence/web/heartbeat")
-def presence_hb(h, body, user):
-    return h.json_out({"success": True, "online": True})
-
-
-@route("POST", "/api/presence/web/offline")
-def presence_off(h, body, user):
-    return h.json_out({"success": True})
-
-
-@proute("GET", r"^/api/presence/")
-def presence_get(h, mo, body, user):
-    d = {"status": "online", "online": True, "mode": "online"}
-    return h.json_out({"success": True, "data": dict(d), **d})
-
-
-@proute("GET", r"^/api/tokens/")
-def tokens_get(h, mo, body, user):
-    return h.json_out({"success": False, "message": "Используйте /api/loader/download"})
-
-
-@proute("GET", r"^/api/freeze/")
-def freeze_get(h, mo, body, user):
-    d = {"active": False, "frozen": False, "until": None}
-    return h.json_out({"success": True, "data": dict(d), **d})
-
-
-# ---- admin panel API
-
-def is_admin_role(user):
-    return user is not None and user["role"] == "admin"
-
-
-def require_admin(user):
-    return (
-        is_admin_role(user)
-        and bool(user["totp_enabled"])
-        and time.time() - user["_mfa_at"] < ADMIN_MFA_TTL
-    )
-
-
-def num(v):
-    f = float(v or 0)
-    if not math.isfinite(f) or abs(f) > 1e9:
-        raise ValueError("bad number")
-    return f
-
-
-@route("GET", "/api/admin/users")
-def admin_users(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    rows = _db(
-        "SELECT u.*, COALESCE(p.c, 0) AS purchases_cnt, COALESCE(i.c, 0) AS cosmetics_cnt"
-        " FROM users u"
-        " LEFT JOIN (SELECT user_id, COUNT(*) c FROM purchases GROUP BY user_id) p ON p.user_id = u.id"
-        " LEFT JOIN (SELECT user_id, COUNT(*) c FROM inventory GROUP BY user_id) i ON i.user_id = u.id"
-        " ORDER BY u.id"
-    )
-    out = []
-    for r in rows:
-        out.append({
-            "id": r["id"],
-            "username": r["username"],
-            "email": r["email"],
-            "display_name": r["display_name"],
-            "role": r["role"],
-            "balance": r["balance"],
-            "total_deposits": r["total_deposits"],
-            "total_purchases": r["total_purchases"],
-            "hwid": r.get("hwid") or "",
-            "hwid_bound_at": r.get("hwid_bound_at") or "",
-            "created_at": r["created_at"],
-            "banned": bool(r["banned"]),
-            "purchases": r["purchases_cnt"],
-            "cosmetics": r["cosmetics_cnt"],
-        })
-    return h.json_out({"success": True, "data": out, "count": len(out)})
-
-@route("POST", "/api/admin/users/update")
-def admin_update(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    uid = body.get("userId")
-    target = get_user_by_id(uid)
-    if not target:
-        return h.json_out({"message": "Пользователь не найден"}, 404)
-    if target["role"] == "admin" and target["id"] != user["id"]:
-        return h.json_out({"message": "Другого админа менять нельзя"}, 403)
-    audit(user, "update_user", "user=%s fields=%s" % (uid, ",".join(k for k in body if k != "password" and k != "userId")) + (",password" if body.get("password") else ""))
-    if body.get("reset_hwid"):
-        reset_user_hwid(target["id"])
-    if "role" in body:
-        role = str(body.get("role"))
-        if role not in ("user", "beta_tester", "moderator", "admin"):
-            return h.json_out({"message": "Неизвестная роль"}, 400)
-        if target["id"] == user["id"] and role != "admin":
-            return h.json_out({"message": "Нельзя снять админку с самого себя"}, 400)
-        _db("UPDATE users SET role=? WHERE id=?", (role, uid))
-    if "balance" in body:
-        try:
-            val = num(body.get("balance"))
-        except (TypeError, ValueError):
-            return h.json_out({"message": "Некорректный баланс"}, 400)
-        _db("UPDATE users SET balance=? WHERE id=?", (val, uid))
-    if "password" in body and body.get("password"):
-        if len(str(body["password"])) < 8:
-            return h.json_out({"message": "Пароль минимум 8 символов"}, 400)
-        _db("UPDATE users SET pass_hash=? WHERE id=?", (hash_password(str(body["password"])), uid))
-        _db("DELETE FROM tokens WHERE user_id=? AND token<>?", (uid, user.get("_token")))
-    if "username" in body and body.get("username"):
-        val = str(body["username"]).strip()
-        if not re.fullmatch(r"[A-Za-z0-9_]{3,20}", val):
-            return h.json_out({"message": "Ник: 3-20 символов (латиница, цифры, _)"}, 400)
-        if _db1("SELECT id FROM users WHERE lower(username)=lower(?) AND id<>?", (val, uid)):
-            return h.json_out({"message": "Ник занят"}, 400)
-        _db("UPDATE users SET username=? WHERE id=?", (val, uid))
-    if "email" in body and body.get("email"):
-        val = str(body["email"]).strip().lower()
-        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", val):
-            return h.json_out({"message": "Некорректный email"}, 400)
-        if _db1("SELECT id FROM users WHERE lower(email)=lower(?) AND id<>?", (val, uid)):
-            return h.json_out({"message": "Email занят"}, 400)
-        _db("UPDATE users SET email=? WHERE id=?", (val, uid))
-    u = get_user_by_id(uid)
-    return h.json_out({"success": True, "data": user_json(u), "user": user_json(u)})
-
-
-@route("POST", "/api/admin/users/grant")
-def admin_grant(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    uid = body.get("userId")
-    target = get_user_by_id(uid)
-    if not target:
-        return h.json_out({"message": "Пользователь не найден"}, 404)
-    if "amount" in body:
-        try:
-            amt = num(body.get("amount"))
-        except (TypeError, ValueError):
-            return h.json_out({"message": "Некорректная сумма"}, 400)
-        audit(user, "grant_balance", "user=%s amount=%s" % (uid, amt))
-        _db("UPDATE users SET balance=balance+?, total_deposits=total_deposits+? WHERE id=?", (amt, amt, uid))
-        u = get_user_by_id(uid)
-        return h.json_out({"success": True, "message": "Начислено %.2f ₽" % amt, "data": user_json(u)})
-    if "productId" in body:
-        prod = find_product(body.get("productId"))
-        if not prod:
-            return h.json_out({"message": "Товар не найден"}, 400)
-        audit(user, "grant_product", "user=%s product=%s" % (uid, prod.get("id")))
-        grant_product(target["id"], prod, "admin")
-        msg = "HWID сброшен" if is_hwid_reset(prod) else "Выдан: %s" % prod.get("title")
-        return h.json_out({"success": True, "message": msg})
-    if "cosmeticId" in body:
-        try:
-            cid = int(body.get("cosmeticId"))
-        except (TypeError, ValueError):
-            return h.json_out({"message": "Некорректная косметика"}, 400)
-        audit(user, "grant_cosmetic", "user=%s cosmetic=%s" % (uid, cid))
-        if not _db1("SELECT 1 FROM inventory WHERE user_id=? AND cosmetic_id=?", (uid, cid)):
-            _db(
-                "INSERT INTO inventory(user_id,cosmetic_id,active,granted_at) VALUES(?,?,0,?)",
-                (target["id"], cid, now_iso()),
-            )
-        return h.json_out({"success": True, "message": "Косметика #%d выдана" % cid})
-    return h.json_out({"message": "Нечего выдавать"}, 400)
-@route("GET", "/api/admin/users/subscriptions")
-def admin_user_subs(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    uid = h.path.split("userId=")[-1].split("&")[0] if "userId=" in h.path else ""
-    try:
-        uid = int(uid)
-    except (TypeError, ValueError):
-        return h.json_out({"message": "Некорректный userId"}, 400)
-    rows = _db(
-        "SELECT id, product_id, title, price, source, purchased_at, expires_at"
-        " FROM purchases WHERE user_id=? ORDER BY id DESC",
-        (uid,),
-    )
-    inv = _db("SELECT cosmetic_id, active, granted_at FROM inventory WHERE user_id=? ORDER BY granted_at DESC", (uid,))
-    return h.json_out({"success": True, "subscriptions": rows, "cosmetics": inv})
-
-
-@route("POST", "/api/admin/subscriptions/update")
-def admin_sub_update(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    try:
-        sub_id = int(body.get("id"))
-    except (TypeError, ValueError):
-        return h.json_out({"message": "Некорректный ID подписки"}, 400)
-    row = _db1("SELECT * FROM purchases WHERE id=?", (sub_id,))
-    if not row:
-        return h.json_out({"message": "Подписка не найдена"}, 404)
-
-    action = str(body.get("action") or "")
-    if action == "delete":
-        _db("DELETE FROM purchases WHERE id=?", (sub_id,))
-        audit(user, "delete_subscription", "sub=%s user=%s title=%s" % (sub_id, row["user_id"], row["title"]))
-        return h.json_out({"success": True, "message": "Подписка удалена"})
-
-    if action == "lifetime":
-        _db("UPDATE purchases SET expires_at=NULL WHERE id=?", (sub_id,))
-        audit(user, "lifetime_subscription", "sub=%s user=%s" % (sub_id, row["user_id"]))
-        return h.json_out({"success": True, "message": "Выдан Lifetime"})
-
-    if action == "extend":
-        try:
-            days = int(body.get("days") or 0)
-        except (TypeError, ValueError):
-            return h.json_out({"message": "Некорректное число дней"}, 400)
-        if days == 0 or abs(days) > 3650:
-            return h.json_out({"message": "Укажите от -3650 до 3650 дней"}, 400)
-        cur_exp = row.get("expires_at")
-        base_ts = time.time()
-        if cur_exp:
-            try:
-                parsed = calendar.timegm(time.strptime(cur_exp[:19], "%Y-%m-%dT%H:%M:%S"))
-                if parsed > base_ts:
-                    base_ts = parsed
-            except ValueError:
-                pass
-        new_exp = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(base_ts + days * 86400)) + ".000Z"
-        _db("UPDATE purchases SET expires_at=? WHERE id=?", (new_exp, sub_id))
-        audit(user, "extend_subscription", "sub=%s user=%s days=%s" % (sub_id, row["user_id"], days))
-        return h.json_out({"success": True, "message": "Срок обновлён"})
-
-    if action == "set_date":
-        raw_date = str(body.get("expires_at") or "").strip()
-        if not raw_date:
-            _db("UPDATE purchases SET expires_at=NULL WHERE id=?", (sub_id,))
-        else:
-            if len(raw_date) == 10:
-                raw_date += "T23:59:59.000Z"
-            elif len(raw_date) == 16:
-                raw_date += ":00.000Z"
-            _db("UPDATE purchases SET expires_at=? WHERE id=?", (raw_date, sub_id))
-        audit(user, "set_sub_date", "sub=%s user=%s date=%s" % (sub_id, row["user_id"], raw_date or "lifetime"))
-        return h.json_out({"success": True, "message": "Дата окончания изменена"})
-
-    return h.json_out({"message": "Неизвестное действие"}, 400)
-
-
-@route("POST", "/api/admin/cosmetics/delete")
-def admin_cos_delete(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    try:
-        uid = int(body.get("userId"))
-        cid = int(body.get("cosmeticId"))
-    except (TypeError, ValueError):
-        return h.json_out({"message": "Некорректные параметры"}, 400)
-    _db("DELETE FROM inventory WHERE user_id=? AND cosmetic_id=?", (uid, cid))
-    audit(user, "delete_cosmetic", "user=%s cosmetic=%s" % (uid, cid))
-    return h.json_out({"success": True, "message": "Косметика изъята"})
-
-@route("POST", "/api/admin/keys")
-def admin_keys(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    prod = find_product(body.get("productId"))
-    if not prod:
-        return h.json_out({"message": "Товар не найден"}, 400)
-    pid = int(prod["id"])
-    try:
-        count = max(1, min(int(body.get("count") or 1), 100))
-    except (TypeError, ValueError):
-        count = 1
-    made = []
-    custom = str(body.get("key") or "").strip().upper()
-    if count == 1 and custom and not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{11,63}", custom):
-        return h.json_out({"message": "Свой ключ: 12–64 символа, A-Z, 0-9 и «-»"}, 400)
-    audit(user, "create_keys", "product=%s count=%s" % (pid, count))
-    for _ in range(count):
-        key = (custom if count == 1 else "") or (
-            "SNW-" + "-".join(secrets.token_hex(2).upper() for _ in range(3))
-        )
-        if _db1("SELECT 1 FROM keys WHERE key=?", (key,)):
-            if count == 1:
-                return h.json_out({"message": "Ключ уже существует"}, 400)
-            continue
-        _db(
-            "INSERT INTO keys(key,product_id,created_by,created_at) VALUES(?,?,?,?)",
-            (key, pid, user["id"], now_iso()),
-        )
-        made.append(key)
-    return h.json_out({"success": True, "key": made[0] if made else None, "keys": made, "data": {"keys": made}})
-
-
-@route("POST", "/api/admin/keys/delete")
-def admin_keys_delete(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    audit(user, "delete_key", body.get("key"))
-    _db("DELETE FROM keys WHERE key=? AND used_by IS NULL", (str(body.get("key") or ""),))
-    return h.json_out({"success": True})
-
-
-@route("POST", "/api/admin/users/delete")
-def admin_user_delete(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    try:
-        uid = int(body.get("userId"))
-    except (TypeError, ValueError):
-        return h.json_out({"message": "Некорректный пользователь"}, 400)
-    if uid == user["id"]:
-        return h.json_out({"message": "Нельзя удалить самого себя"}, 400)
-    t = get_user_by_id(uid)
-    if t and t["role"] == "admin":
-        return h.json_out({"message": "Админа удалить нельзя"}, 403)
-    audit(user, "delete_user", "user=%s name=%s" % (uid, t and t["username"]))
-    for tbl in ("tokens", "inventory", "purchases"):
-        _db("DELETE FROM %s WHERE user_id=?" % tbl, (uid,))
-    _db("DELETE FROM users WHERE id=?", (uid,))
-    return h.json_out({"success": True})
-
-
-@route("GET", "/api/admin/promos")
-def admin_promos(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    rows = _db("SELECT p.*, COALESCE((SELECT SUM(amount) FROM promo_uses WHERE code=p.code),0) AS revenue"
-               " FROM promocodes p ORDER BY created_at DESC")
-    return h.json_out({"success": True, "data": [dict(r) for r in rows]})
-
-
-@route("POST", "/api/admin/promos")
-def admin_promo_create(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    code = str(body.get("code") or "").strip().upper()
-    if not code:
-        code = "SNOW" + secrets.token_hex(3).upper()
-    if not re.fullmatch(r"[A-Z0-9_-]{3,32}", code):
-        return h.json_out({"message": "Код: 3–32 символа, A-Z, 0-9, «_» и «-»"}, 400)
-    try:
-        disc = int(body.get("discount") or 0)
-        max_uses = max(0, int(body.get("maxUses") or 0))
-        days = max(0, int(body.get("days") or 0))
-    except (TypeError, ValueError):
-        return h.json_out({"message": "Некорректные числа"}, 400)
-    if not 1 <= disc <= 99:
-        return h.json_out({"message": "Скидка: от 1 до 99%"}, 400)
-    exp = (time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() + days * 86400)) + ".000Z") if days else None
-    if _db1("SELECT 1 FROM promocodes WHERE code=?", (code,)):
-        return h.json_out({"message": "Такой промокод уже есть"}, 400)
-    _db("INSERT INTO promocodes(code,discount,max_uses,expires_at,created_at) VALUES(?,?,?,?,?)",
-        (code, disc, max_uses, exp, now_iso()))
-    audit(user, "create_promo", "%s -%s%% max=%s days=%s" % (code, disc, max_uses, days))
-    return h.json_out({"success": True, "code": code})
-
-
-@route("POST", "/api/admin/promos/update")
-def admin_promo_update(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    code = str(body.get("code") or "").strip().upper()
-    act = body.get("action")
-    if act == "toggle":
-        _db("UPDATE promocodes SET active = 1 - active WHERE code=?", (code,))
-    elif act == "delete":
-        _db("DELETE FROM promocodes WHERE code=?", (code,))
-    else:
-        return h.json_out({"message": "Неизвестное действие"}, 400)
-    audit(user, "promo_" + act, code)
-    return h.json_out({"success": True})
-
-
-@route("POST", "/api/admin/promos/uses")
-def admin_promo_uses(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    rows = _db("SELECT pu.*, u.username FROM promo_uses pu LEFT JOIN users u ON u.id=pu.user_id"
-               " WHERE pu.code=? ORDER BY pu.id DESC LIMIT 300", (str(body.get("code") or "").strip().upper(),))
-    return h.json_out({"success": True, "data": [dict(r) for r in rows]})
-
-
-@route("GET", "/api/admin/stats")
-def admin_stats(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    r = _db1("SELECT COUNT(*) c, COALESCE(SUM(balance),0) b FROM users")
-    roles = {x["role"]: x["c"] for x in _db("SELECT role, COUNT(*) c FROM users GROUP BY role")}
-    k = _db1("SELECT COUNT(*) total, COUNT(used_by) used FROM keys")
-    p = _db1("SELECT COUNT(*) c FROM purchases")
-    week = _db1("SELECT COUNT(*) c FROM users WHERE created_at >= ?", (time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - 7 * 86400)),))
-    return h.json_out({"success": True, "data": {
-        "users": r["c"], "balance": float(r["b"]), "roles": roles,
-        "keys_total": k["total"], "keys_used": k["used"], "purchases": p["c"], "new_week": week["c"]}})
-
-
-@route("GET", "/api/admin/keys")
-def admin_keys_list(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    rows = _db("SELECT * FROM keys ORDER BY created_at DESC")
-    out = []
-    for r in rows:
-        prod = find_product(r["product_id"]) or {}
-        out.append(
-            {
-                "key": r["key"],
-                "product_id": r["product_id"],
-                "product_title": prod.get("title") or ("Подписка #%s" % r["product_id"]),
-                "used_by": r["used_by"],
-                "used_at": r["used_at"],
-                "created_at": r["created_at"],
-            }
-        )
-    return h.json_out({"success": True, "data": out, "count": len(out)})
-
-
-# ---------------------------------------------------------------- security / 2FA
-
-_fails = {}
-_fl = threading.Lock()
-
-
-def throttled(key, limit=5, window=900):
-    now = time.time()
-    with _fl:
-        _fails[key] = [t for t in _fails.get(key, []) if now - t < window]
-        return len(_fails[key]) >= limit
-
-
-def note_fail(key):
-    with _fl:
-        _fails.setdefault(key, []).append(time.time())
-        if len(_fails) > 20000:
-            # выкидываем только пустые/старые записи; счётчики 2FA и свежие блокировки не трогаем
-            cutoff = time.time() - 3600
-            for k in [k for k, v in _fails.items() if not v or v[-1] < cutoff]:
-                del _fails[k]
-            if len(_fails) > 20000:
-                old = sorted((k for k in _fails if not k.startswith("mfa:")), key=lambda k: _fails[k][-1])
-                for k in old[:5000]:
-                    del _fails[k]
-
-
-def migrate():
-    for col in (
-        "banned INTEGER NOT NULL DEFAULT 0",
-        "totp_secret TEXT",
-        "totp_enabled INTEGER NOT NULL DEFAULT 0",
-        "totp_last BIGINT NOT NULL DEFAULT 0",
-        "backup_codes TEXT NOT NULL DEFAULT ''",
-        "hwid TEXT NOT NULL DEFAULT ''",
-        "hwid_bound_at TEXT NOT NULL DEFAULT ''",
-        "referred_by INTEGER",
-        "ref_paid INTEGER NOT NULL DEFAULT 0",
-        "terms_accepted_at TEXT NOT NULL DEFAULT ''",
-        "terms_version TEXT NOT NULL DEFAULT ''",
-        "launch_count INTEGER NOT NULL DEFAULT 0",
-        "last_launch_at TEXT NOT NULL DEFAULT ''",
-    ):
-        _run("ALTER TABLE users ADD COLUMN IF NOT EXISTS " + col, (), False)
-    _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS mfa_at DOUBLE PRECISION NOT NULL DEFAULT 0", (), False)
-    _run("ALTER TABLE tokens ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'web'", (), False)
-    _run("CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v TEXT)", (), False)
-    # однократно: старые токены лежали в БД открытым текстом — сбрасываем все сессии
-    if not _db1("SELECT 1 FROM meta WHERE k='tokens_hashed'"):
-        _run("DELETE FROM tokens", (), False)
-        _run("INSERT INTO meta(k,v) VALUES('tokens_hashed','1')", (), False)
-    # раньше покупка «Сброс HWID» (expires_at=NULL) выдавала Lifetime — гасим такие записи
-    _run("UPDATE purchases SET expires_at='1970-01-01T00:00:00.000Z' WHERE product_id=5 AND expires_at IS NULL", (), False)
-    for ddl in (
-        "CREATE INDEX IF NOT EXISTS tokens_user ON tokens(user_id)",
-        "CREATE INDEX IF NOT EXISTS purchases_user ON purchases(user_id)",
-        "CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower ON users(lower(username))",
-        "CREATE UNIQUE INDEX IF NOT EXISTS users_email_lower ON users(lower(email))",
-    ):
-        try:
-            _run(ddl, (), False)
-        except Exception as e:  # например, уже есть дубли ников — разберите вручную
-            print("migrate warning:", ddl, "->", e, file=sys.stderr)
-    _run(
-        "CREATE TABLE IF NOT EXISTS audit(id SERIAL PRIMARY KEY, ts TEXT NOT NULL, admin_id INTEGER,"
-        " admin_name TEXT, action TEXT NOT NULL, detail TEXT)", (), False)
-    for col in (
-        "ts TEXT",
-        "admin_id INTEGER",
-        "admin_name TEXT",
-        "action TEXT",
-        "detail TEXT",
-    ):
-        _run("ALTER TABLE audit ADD COLUMN IF NOT EXISTS " + col, (), False)
-    for r in _db(
-        "SELECT column_name FROM information_schema.columns"
-        " WHERE table_schema = current_schema() AND table_name = 'audit'"
-        " AND is_nullable = 'NO' AND column_name NOT IN ('id', 'ts', 'action')"
-    ):
-        _run("ALTER TABLE audit ALTER COLUMN %s DROP NOT NULL" % r["column_name"], (), False)
-    for col in (
-        "product_id INTEGER",
-        "created_by INTEGER",
-        "used_by INTEGER",
-        "used_at TEXT",
-        "created_at TEXT",
-    ):
-        _run("ALTER TABLE keys ADD COLUMN IF NOT EXISTS " + col, (), False)
-    for r in _db(
-        "SELECT column_name FROM information_schema.columns"
-        " WHERE table_schema = current_schema() AND table_name = 'keys'"
-        " AND is_nullable = 'NO' AND column_name NOT IN ('key', 'product_id', 'created_at')"
-    ):
-        _run("ALTER TABLE keys ALTER COLUMN %s DROP NOT NULL" % r["column_name"], (), False)
-    _run("""CREATE TABLE IF NOT EXISTS payments(
-        order_id TEXT PRIMARY KEY, user_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
-        amount DOUBLE PRECISION NOT NULL, promo TEXT, invoice_id BIGINT,
-        status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL, paid_at TEXT)""", (), False)
-    _run("""CREATE TABLE IF NOT EXISTS promocodes(
-        code TEXT PRIMARY KEY, discount INTEGER NOT NULL, max_uses INTEGER NOT NULL DEFAULT 0,
-        uses INTEGER NOT NULL DEFAULT 0, expires_at TEXT, active INTEGER NOT NULL DEFAULT 1,
-        created_at TEXT NOT NULL)""", (), False)
-    _run("""CREATE TABLE IF NOT EXISTS promo_uses(
-        id SERIAL PRIMARY KEY, code TEXT NOT NULL, user_id INTEGER NOT NULL, order_id TEXT,
-        discount INTEGER NOT NULL DEFAULT 0, amount DOUBLE PRECISION NOT NULL DEFAULT 0, used_at TEXT NOT NULL)""", (), False)
-
-
-def audit(admin, action, detail=""):
-    _db(
-        "INSERT INTO audit(ts,admin_id,admin_name,action,detail) VALUES(?,?,?,?,?)",
-        (now_iso(), admin["id"], admin["username"], action, str(detail)[:500]),
-    )
-
-
-def _hotp(secret, counter):
-    key = base64.b32decode(secret)
-    d = hmac.new(key, struct.pack(">Q", counter), "sha1").digest()
-    o = d[-1] & 15
-    return "%06d" % ((struct.unpack(">I", d[o:o + 4])[0] & 0x7FFFFFFF) % 1000000)
-
-
-def check_totp(u, code):
-    code = re.sub(r"\s", "", str(code or ""))
-    if not u["totp_secret"] or not re.fullmatch(r"\d{6}", code):
-        return False
-    base = int(time.time() // 30)
-    for c in (base - 1, base, base + 1):
-        if secrets.compare_digest(_hotp(u["totp_secret"], c), code):
-            return bool(_db1("UPDATE users SET totp_last=? WHERE id=? AND totp_last<? RETURNING id", (c, u["id"], c)))
-    return False
-
-
-def _bh(code):
-    return hashlib.sha256(code.strip().lower().encode()).hexdigest()
-
-
-def check_backup(u, code):
-    hs = [x for x in (u["backup_codes"] or "").split(",") if x]
-    hc = _bh(str(code or ""))
-    if hc not in hs:
-        return False
-    hs.remove(hc)
-    return bool(_db1("UPDATE users SET backup_codes=? WHERE id=? AND backup_codes=? RETURNING id",
-                     (",".join(hs), u["id"], u["backup_codes"])))
-
-
-def _mfa_guard(h, user):
-    if not is_admin_role(user):
-        h.json_out({"message": "Доступ только для админа"}, 403)
-        return True
-    if throttled("mfa:%s" % user["id"], 5, 600):
-        h.json_out({"message": "Слишком много неверных кодов. Подождите 10 минут"}, 429)
-        return True
-    return False
-
-
-def _mark_mfa(user):
-    _db("UPDATE tokens SET mfa_at=? WHERE token=?", (time.time(), user["_token"]))
-
-
-@route("GET", "/api/admin/2fa/status")
-def mfa_status(h, body, user):
-    if not is_admin_role(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    h.json_out({"success": True, "enabled": bool(user["totp_enabled"]), "verified": require_admin(user)})
-
-
-@route("POST", "/api/admin/2fa/setup")
-def mfa_setup(h, body, user):
-    if _mfa_guard(h, user):
-        return
-    if user["totp_enabled"]:
-        return h.json_out({"message": "2FA уже включена. Сначала отключите её"}, 400)
-    if not check_password(str(body.get("password") or ""), user["pass_hash"]):
-        note_fail("mfa:%s" % user["id"])
-        return h.json_out({"message": "Неверный пароль"}, 400)
-    secret = user["totp_secret"] or base64.b32encode(os.urandom(20)).decode()
-    if not user["totp_secret"]:
-        _db("UPDATE users SET totp_secret=? WHERE id=?", (secret, user["id"]))
-    uri = "otpauth://totp/Admin:%s?secret=%s&issuer=Admin&period=30&digits=6" % (user["username"], secret)
-    h.json_out({"success": True, "secret": secret, "uri": uri})
-
-@route("POST", "/api/admin/2fa/enable")
-def mfa_enable(h, body, user):
-    if _mfa_guard(h, user):
-        return
-    if user["totp_enabled"] or not user["totp_secret"]:
-        return h.json_out({"message": "Сначала запросите секрет (setup)"}, 400)
-    if not check_totp(user, body.get("code")):
-        note_fail("mfa:%s" % user["id"])
-        return h.json_out({"message": "Неверный код"}, 400)
-    codes = ["%s-%s" % (secrets.token_hex(3), secrets.token_hex(3)) for _ in range(8)]
-    _db("UPDATE users SET totp_enabled=1, backup_codes=? WHERE id=?", (",".join(_bh(c) for c in codes), user["id"]))
-    _mark_mfa(user)
-    audit(user, "2fa_enable")
-    h.json_out({"success": True, "backup_codes": codes})
-
-
-@route("POST", "/api/admin/2fa/verify")
-def mfa_verify(h, body, user):
-    if _mfa_guard(h, user):
-        return
-    if not user["totp_enabled"]:
-        return h.json_out({"message": "2FA не настроена"}, 400)
-    code = str(body.get("code") or "")
-    if not (check_totp(user, code) or check_backup(user, code)):
-        note_fail("mfa:%s" % user["id"])
-        return h.json_out({"message": "Неверный код"}, 400)
-    _mark_mfa(user)
-    audit(user, "login_2fa", h.client_ip())
-    h.json_out({"success": True})
-
-
-@route("POST", "/api/admin/2fa/disable")
-def mfa_disable(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Нужно подтверждение 2FA"}, 403)
-    if _mfa_guard(h, user):
-        return
-    if not check_password(str(body.get("password") or ""), user["pass_hash"]) or not check_totp(user, body.get("code")):
-        note_fail("mfa:%s" % user["id"])
-        return h.json_out({"message": "Неверный пароль или код"}, 400)
-    _db("UPDATE users SET totp_enabled=0, totp_secret=NULL, backup_codes='' WHERE id=?", (user["id"],))
-    audit(user, "2fa_disable")
-    h.json_out({"success": True})
-
-
-@route("GET", "/api/admin/products")
-def admin_products(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    prods = fetch_products()
-    out = [{"id": p.get("id"), "title": p.get("title"), "price": p.get("price"), "type": p.get("type") or ""} for p in prods]
-    if not out:
-        out = [
-            {"id": 1, "title": "SnowClient — 1 Месяц", "price": 299},
-            {"id": 2, "title": "SnowClient — 3 Месяца", "price": 699},
-            {"id": 3, "title": "SnowClient — 6 Месяцев", "price": 1199},
-            {"id": 4, "title": "SnowClient — Lifetime", "price": 2499},
-        ]
-    h.json_out({"success": True, "data": out})
-
-
-@route("GET", "/api/admin/purchases")
-def admin_purchases(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    rows = _db(
-        "SELECT p.id,p.title,p.price,p.source,p.purchased_at,p.expires_at,u.username FROM purchases p"
-        " LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT 300"
-    )
-    h.json_out({"success": True, "data": rows})
-
-
-@route("GET", "/api/admin/audit")
-def admin_audit(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    h.json_out({"success": True, "data": _db("SELECT * FROM audit ORDER BY id DESC LIMIT 300")})
-
-
-@route("POST", "/api/admin/users/ban")
-def admin_ban(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    t = get_user_by_id(body.get("userId"))
-    if not t or t["role"] == "admin":
-        return h.json_out({"message": "Пользователь не найден или это админ"}, 400)
-    ban = 1 if body.get("banned") else 0
-    _db("UPDATE users SET banned=? WHERE id=?", (ban, t["id"]))
-    if ban:
-        _db("DELETE FROM tokens WHERE user_id=?", (t["id"],))
-    audit(user, "ban" if ban else "unban", "user=%s" % t["id"])
-    h.json_out({"success": True})
-
-
-@route("POST", "/api/admin/users/logout")
-def admin_kick(h, body, user):
-    if not require_admin(user):
-        return h.json_out({"message": "Доступ только для админа"}, 403)
-    t = get_user_by_id(body.get("userId"))
-    if not t or (t["role"] == "admin" and t["id"] != user["id"]):
-        return h.json_out({"message": "Нельзя"}, 400)
-    _db("DELETE FROM tokens WHERE user_id=? AND token<>?", (t["id"], user["_token"]))
-    audit(user, "kick_sessions", "user=%s" % t["id"])
-    h.json_out({"success": True})
-
-
-# ---------------------------------------------------------------- handler
-
-
-class Handler(http.server.SimpleHTTPRequestHandler):
-    timeout = 30  # защита от «медленных» соединений
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=ROOT, **kwargs)
-
-    def json_out(self, obj, status=200):
-        data = json.dumps(obj, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
-
-    server_version = "web"
-    sys_version = ""
-
-    def client_ip(self):
-        if TRUST_PROXY:
-            xff = (self.headers.get("X-Forwarded-For") or "").split(",")
-            if xff[-1].strip():
-                return xff[-1].strip()[:64]
-        return self.client_address[0]
-
-    def end_headers(self):
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Strict-Transport-Security", "max-age=31536000")
-        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
-        clean_path = self.path.split("?")[0]
-        if clean_path in (
-            "/admin", "/admin/", "/admin.html", "/admin.js",
-            "/cabinet", "/cabinet/", "/cabinet.html", "/cabinet.js",
-        ) or self.path.startswith("/api/"):
-            self.send_header("Cache-Control", "no-store")
-        if clean_path in ("/admin", "/admin/", "/admin.html"):
-            self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
-        elif not self.path.startswith("/api/"):
-            # inline onclick/onerror в разметке пока требуют 'unsafe-inline' для скриптов
-            self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https:; frame-src https://www.youtube-nocookie.com https://www.youtube.com; connect-src 'self' http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
-        super().end_headers()
-
-    def bearer_token(self):
-        auth = self.headers.get("Authorization") or ""
-        if auth.lower().startswith("bearer "):
-            return auth[7:].strip()
-        return None
-
-    def read_body(self, path=""):
-        """dict / bytes (только загрузка картинок) / None, если запрос некорректен или слишком большой."""
-        raw_len = self.headers.get("Content-Length")
-        if not raw_len:
-            return {}
-        try:
-            length = int(raw_len)
-        except ValueError:
-            return None
-        ctype = self.headers.get("Content-Type") or ""
-        multipart = "multipart/form-data" in ctype
-        if length < 0 or length > (MAX_UPLOAD if (multipart and path in UPLOAD_PATHS) else MAX_JSON):
-            return None
-        raw = self.rfile.read(length) if length else b""
-        if multipart:
-            return raw if path in UPLOAD_PATHS else None
-        if not raw:
-            return {}
-        try:
-            data = json.loads(raw.decode("utf-8"))
-            return data if isinstance(data, dict) else {}
-        except Exception:
-            return {}
-
-    STATIC_OK = ("/static/", "/uploads/local/", "/assets/", "/fonts/")
-    STATIC_FILES = (
-    "/", "/index.html", "/admin.html", "/admin.js",
-    "/cabinet.html", "/cabinet.js", "/client-auth.js", "/smoke-shader.js",
-    "/terms.html", "/rules.html", "/privacy.html",
-    "/style.css", "/script.js", "/config.js",
-    "/favicon.ico", "/manifest.json", "/robots.txt",
-)
-
-    BLOCKED_EXT = (".exe", ".py", ".pyc", ".env", ".sql", ".db", ".sqlite", ".pem", ".key", ".log", ".bak", ".txt", ".md")
-    STATIC_DIRS = ("static", "uploads/local", "assets", "fonts")
-
-    def _static_target(self, clean):
-        """Путь к файлу, который МОЖНО отдать, иначе None.
-        Защита: нет '..', нет скрытых файлов, нет выхода за разрешённые папки (realpath),
-        закрытые расширения (.exe отдаётся только через /api/loader/download)."""
-        rel = unquote(clean)
-        if "\x00" in rel or "\\" in rel or not rel.startswith("/"):
-            return None
-        parts = [p for p in rel.split("/") if p]
-        if any(p in (".", "..") or p.startswith(".") for p in parts):
-            return None
-        real_root = os.path.realpath(ROOT)
-        fs = os.path.realpath(os.path.join(real_root, *parts))
-        if rel in self.STATIC_FILES:
-            ok = fs == os.path.join(real_root, *parts)
-        else:
-            ok = any(
-                rel.startswith("/" + d + "/") and fs.startswith(os.path.join(real_root, *d.split("/")) + os.sep)
-                for d in self.STATIC_DIRS
-            )
-        if not ok or not os.path.isfile(fs):
-            return None
-        if rel not in self.STATIC_FILES and fs.lower().endswith(self.BLOCKED_EXT):
-            return None
-        return fs
-
-    def _serve_static(self):
-        clean = urlsplit(self.path).path
-        if clean == "/":
-            clean = "/index.html"
-        if self._static_target(clean):
-            self.path = clean
-            return super().do_GET()
-        if "." in os.path.basename(clean):
-            return self.send_error(404)
-        self.path = "/index.html"
-        return super().do_GET()
-
-    def _handle_api(self, method, path, body, user):
-        fn = ROUTES.get((method, path))
-        if fn:
-            fn(self, body, user)
-            return
-        for m, rx, f in PREFIX_ROUTES:
-            if m == method:
-                mo = rx.match(path)
-                if mo:
-                    f(self, mo, body, user)
-                    return
-        self.json_out({"message": "Не найдено"}, 404)
-
-    def _handle(self, method):
-        try:
-            self._handle_inner(method)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
-        except Exception:
-            traceback.print_exc()  # подробности только в лог, клиенту — ничего лишнего
-            try:
-                self.json_out({"message": "Внутренняя ошибка сервера"}, 500)
-            except Exception:
-                pass
-
-    def _handle_inner(self, method):
-        parts = urlsplit(self.path)
-        path = parts.path
-        if path.startswith("/uploads/local/"):
-            if method != "GET":
-                self.send_error(405)
-                return
-            return self._serve_static()
-        if path.startswith("/uploads"):
-            return self.send_error(404)
-        if not path.startswith("/api"):
-            if method != "GET":
-                self.send_error(405)
-                return
-            if path in ("/admin", "/admin/"):
-                self.path = "/admin.html"
-            elif path in ("/cabinet", "/cabinet/"):
-                self.path = "/cabinet.html"
-            elif path.rstrip("/") in ("/terms", "/rules", "/privacy"):
-                self.path = path.rstrip("/") + ".html"
-            return self._serve_static()
-        body = self.read_body(path) if method in ("POST", "PUT", "PATCH", "DELETE") else {}
-        if body is None:
-            return self.json_out({"message": "Некорректный или слишком большой запрос"}, 413)
-        user = get_user_by_token(self.bearer_token())
-        if user and user.get("_scope") != "web" and (method, path) not in LOADER_ALLOWED:
-            return self.json_out({"message": "Токен не подходит для этого метода"}, 403)
-        self._handle_api(method, path, body, user)
-
-    def do_GET(self):
-        self._handle("GET")
-
-    def do_POST(self):
-        self._handle("POST")
-
-    def do_PUT(self):
-        self._handle("PUT")
-
-    def do_PATCH(self):
-        self._handle("PATCH")
-
-    def do_DELETE(self):
-        self._handle("DELETE")
-
-    def do_OPTIONS(self):
-        # сайт и API на одном origin — CORS не нужен
-        self.send_response(204)
-        self.send_header("Allow", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-        self.end_headers()
-
-    def log_message(self, fmt, *args):
-        pass
-
-
-def _purge_loop():
-    while True:
-        try:
-            cutoff = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(time.time() - TOKEN_TTL))
-            _db("DELETE FROM tokens WHERE created_at < ?", (cutoff,))
-        except Exception:
-            traceback.print_exc()
-        time.sleep(3600)
-
-
-if __name__ == "__main__":
-    init_db()
-    migrate()
-    if os.environ.get("ADMIN_USERNAME") and not os.environ.get("ADMIN_EMAIL"):
-        print("WARNING: задан ADMIN_USERNAME без ADMIN_EMAIL — автосоздание админа отключено", file=sys.stderr)
-    threading.Thread(target=_purge_loop, daemon=True).start()
-    _run("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily DOUBLE PRECISION NOT NULL DEFAULT 0", (), False)
-    with http.server.ThreadingHTTPServer(("0.0.0.0", PORT), Handler) as httpd:
-        print("listening on", PORT)
-        httpd.serve_forever()
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #050505; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--primary-dark); }
+::selection { background: var(--primary); color: var(--on-primary); }
+
+@keyframes flakeSpin { to { transform: rotate(360deg); } }
+
+/* ────────────────────────────────────────────
+   BACKGROUNDS & SHADER SMOKE
+──────────────────────────────────────────── */
+.bg-base {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 0%, #232326 0%, rgba(35, 35, 38, 0) 70%),
+    radial-gradient(ellipse 120% 90% at 50% 25%, #121214 0%, #0a0a0b 45%, #040404 80%, #010101 100%);
+}
+.bg-base::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 100% 85% at 50% 40%, transparent 45%, rgba(0, 0, 0, 0.72) 100%);
+}
+.smoke-canvas {
+  position: fixed; inset: 0; z-index: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  display: block;
+  opacity: 0.5;
+  mix-blend-mode: screen;
+}
+.bg-grid {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, black 0%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 35%, black 0%, transparent 100%);
+}
+
+.aurora { display: none; }
+
+.scroll-progress {
+  position: fixed; top: 0; left: 0;
+  height: 2px; width: 100%;
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+  background: var(--primary);
+  z-index: 3000;
+  pointer-events: none;
+}
+
+.cursor-glow {
+  width: 280px; height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.025) 0%, transparent 70%);
+  position: fixed;
+  pointer-events: none;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+  will-change: left, top;
+}
+
+.container {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 32px;
+  position: relative;
+  z-index: 2;
+}
+
+/* ────────────────────────────────────────────
+   NAVBAR
+──────────────────────────────────────────── */
+.navbar {
+  position: fixed;
+  top: 14px; left: 0; right: 0;
+  z-index: 1000;
+  padding: 0 24px;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.nav-pill {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 1120px;
+  height: 58px;
+  padding: 0 14px 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 16px;
+  background: rgba(6, 8, 13, 0.44);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transition: background var(--transition), border-color var(--transition), box-shadow var(--transition), max-width 0.5s var(--ease-out);
+}
+.navbar.scrolled .nav-pill {
+  max-width: 1020px;
+  background: rgba(6, 8, 13, 0.72);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border-color: var(--border-light);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.nav-logo {
+  display: inline-flex; align-items: center; gap: 10px;
+  cursor: pointer; user-select: none; flex-shrink: 0;
+}
+.logo-flake {
+  width: 21px; height: 21px;
+  color: var(--primary-light);
+  display: inline-flex;
+  animation: flakeSpin 18s linear infinite;
+}
+.logo-flake svg { width: 100%; height: 100%; }
+.nav-logo:hover .logo-flake { animation-duration: 3s; }
+
+.logo-text {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+
+.nav-center { display: flex; align-items: center; gap: 2px; list-style: none; }
+.nav-center a {
+  position: relative;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.86rem;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 10px;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  white-space: nowrap;
+}
+.nav-center a:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+
+.nav-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+.nav-buy {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 36px;
+  background: var(--primary);
+  color: var(--on-primary);
+  padding: 0 18px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.84rem;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+.nav-buy:hover { background: var(--primary-dark); transform: translateY(-1px); }
+
+/* Language */
+.lang-selector { position: relative; }
+.lang-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px;
+  padding: 0 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  background: rgba(8, 10, 16, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-muted);
+  font-size: 0.8rem; font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: var(--font);
+  white-space: nowrap;
+}
+.lang-btn:hover { border-color: rgba(255, 255, 255, 0.27); color: var(--text); background: rgba(255, 255, 255, 0.06); }
+.lang-btn svg { width: 10px; height: 10px; transition: transform var(--transition-fast); }
+.lang-btn.open svg { transform: rotate(180deg); }
+.lang-flag { font-size: 0.95rem; line-height: 1; }
+
+.lang-dropdown {
+  position: absolute; top: calc(100% + 8px); right: 0;
+  background: rgba(7, 9, 15, 0.78);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-light);
+  border-radius: 13px;
+  overflow: hidden;
+  min-width: 176px;
+  opacity: 0; visibility: hidden;
+  transform: translateY(-6px) scale(0.97);
+  transform-origin: top right;
+  transition: opacity 0.2s var(--ease), transform 0.25s var(--ease-out), visibility 0.2s;
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.75);
+  z-index: 200;
+}
+.lang-dropdown.open { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+.lang-option {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+.lang-option:hover { background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.lang-option.active { color: var(--primary-light); background: rgba(255, 255, 255, 0.066); }
+.lang-option .lang-flag { font-size: 1.05rem; }
+.lang-code-badge {
+  font-weight: 700; font-size: 0.68rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  padding: 2px 6px; border-radius: 5px;
+  letter-spacing: 0.4px; margin-left: auto;
+}
+.lang-option.active .lang-code-badge {
+  background: rgba(255, 255, 255, 0.099);
+  color: var(--primary-light);
+}
+
+/* Hamburger */
+.hamburger {
+  display: none; flex-direction: column; gap: 5px;
+  cursor: pointer; padding: 6px;
+  background: none; border: none; flex-shrink: 0;
+}
+.hamburger span {
+  display: block; width: 20px; height: 2px;
+  background: var(--text-muted); border-radius: 99px;
+  transition: all var(--transition);
+}
+.hamburger:hover span { background: var(--text); }
+.hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.hamburger.open span:nth-child(2) { opacity: 0; width: 0; }
+.hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.mobile-menu {
+  position: fixed;
+  top: 82px; left: 16px; right: 16px;
+  background: rgba(7, 9, 15, 0.82);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 10px;
+  z-index: 999;
+  display: flex; flex-direction: column; gap: 2px;
+  box-shadow: 0 28px 68px rgba(0, 0, 0, 0.78);
+  opacity: 0; visibility: hidden;
+  transform: translateY(-10px);
+  transition: opacity 0.25s var(--ease), transform 0.3s var(--ease-out), visibility 0.25s;
+}
+.mobile-menu.open { opacity: 1; visibility: visible; transform: none; }
+.mobile-menu a {
+  color: var(--text-muted); text-decoration: none;
+  font-size: 0.95rem; font-weight: 500;
+  padding: 11px 14px; border-radius: 10px;
+  transition: all var(--transition-fast);
+}
+.mobile-menu a:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+
+/* ────────────────────────────────────────────
+   HERO
+──────────────────────────────────────────── */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 120px 0 90px;
+  position: relative; z-index: 2;
+}
+.hero-inner {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 64px;
+  align-items: center;
+  width: 100%; max-width: 1160px;
+  margin: 0 auto; padding: 0 32px;
+}
+.hero-left { display: flex; flex-direction: column; align-items: flex-start; }
+
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 0.72rem; font-weight: 700;
+  color: var(--primary-light);
+  letter-spacing: 2px; text-transform: uppercase;
+  padding: 6px 14px 6px 11px;
+  border: 1px solid var(--border-light);
+  border-radius: 99px;
+  background: var(--bg-card);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  margin-bottom: 24px;
+}
+.hero-eyebrow-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--primary);
+  animation: pulse 2.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.5); opacity: 0.55; }
+}
+
+.hero h1 {
+  font-size: clamp(3.5rem, 7.6vw, 6.4rem);
+  font-weight: 900;
+  line-height: 0.94;
+  letter-spacing: -3.5px;
+  margin-bottom: 18px;
+}
+.hero-title-line { display: block; overflow: hidden; padding: 0.03em 0.05em 0.08em 0; margin-bottom: -0.03em; }
+.hero-title-static { color: var(--text); }
+.hero-title-accent { color: var(--primary-light); }
+
+.char { display: inline-block; }
+
+.hero-tagline {
+  font-size: 0.82rem; font-weight: 600;
+  letter-spacing: 2px; text-transform: uppercase;
+  color: var(--primary-light);
+  margin-bottom: 16px; line-height: 1.5;
+}
+.hero-desc {
+  font-size: 1rem; color: var(--text-muted);
+  line-height: 1.75; max-width: 440px; margin-bottom: 32px;
+}
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+
+.hero-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  display: inline-flex; align-items: center;
+  height: 28px;
+  font-size: 0.74rem; font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text-muted);
+  padding: 0 12px;
+  border-radius: 99px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+.chip:hover { color: var(--text); border-color: rgba(255, 255, 255, 0.24); background: var(--bg-card-hover); }
+
+/* Видео фрейм */
+.hero-right { position: relative; perspective: 1200px; }
+.hero-float { position: relative; animation: floatY 7s ease-in-out infinite; }
+@keyframes floatY {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+
+.hero-video-frame {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--bg-card);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  aspect-ratio: 16/9;
+  border: 1px solid var(--border-light);
+  box-shadow: 0 36px 80px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform-style: preserve-3d;
+  transition: transform 0.25s ease-out, border-color var(--transition);
+  will-change: transform;
+}
+.hero-video-frame:hover { border-color: rgba(255, 255, 255, 0.21); }
+.hero-video-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+
+.hero-video-placeholder, .video-embed-placeholder {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+  background: radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.044), transparent 68%);
+}
+.play-icon-wrap {
+  position: relative;
+  width: 60px; height: 60px; border-radius: 50%;
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+}
+.play-icon-wrap svg { width: 20px; height: 20px; color: var(--primary-light); margin-left: 3px; }
+.hero-video-placeholder:hover .play-icon-wrap,
+.video-embed-placeholder:hover .play-icon-wrap {
+  background: rgba(255, 255, 255, 0.077);
+  border-color: rgba(255, 255, 255, 0.27);
+  transform: scale(1.06);
+}
+.hero-video-placeholder p, .video-embed-placeholder p {
+  color: var(--text-muted); font-size: 0.82rem;
+  text-align: center; max-width: 190px; line-height: 1.5;
+}
+
+/* Плавающие плашки */
+.float-chip {
+  position: absolute;
+  z-index: 6;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 7px 13px;
+  border-radius: 10px;
+  color: var(--text);
+  background: rgba(8, 10, 16, 0.65);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.6);
+}
+.float-chip-a { top: -16px; right: 10%; animation: bob 5.5s ease-in-out infinite; }
+.float-chip-b { bottom: -14px; left: 8%; animation: bob 6.5s 0.8s ease-in-out infinite reverse; }
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+
+/* Scroll hint */
+.scroll-hint {
+  position: absolute; bottom: 26px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.65rem; letter-spacing: 2px; text-transform: uppercase;
+  opacity: 0.6; white-space: nowrap; z-index: 3;
+}
+.scroll-mouse {
+  width: 18px; height: 28px;
+  border: 1.5px solid var(--border-light);
+  border-radius: 99px;
+  display: flex; justify-content: center; padding-top: 5px;
+}
+.scroll-mouse i {
+  width: 2px; height: 6px; border-radius: 99px;
+  background: var(--primary-light);
+  animation: wheel 1.8s ease-in-out infinite;
+}
+@keyframes wheel {
+  0%   { transform: translateY(0); opacity: 1; }
+  80%  { transform: translateY(9px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 0; }
+}
+
+/* ────────────────────────────────────────────
+   BUTTONS
+──────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 24px;
+  border-radius: 11px;
+  font-size: 0.88rem; font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer; text-decoration: none; border: 1px solid transparent;
+  transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+  white-space: nowrap;
+  font-family: var(--font);
+  position: relative;
+}
+.btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 4px 16px rgba(255, 255, 255, 0.112);
+}
+.btn-primary:hover {
+  background: var(--primary-dark);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 8px 24px rgba(255, 255, 255, 0.144);
+}
+.btn-primary:active { transform: scale(0.98) !important; }
+
+.btn-outline {
+  background: rgba(8, 10, 16, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text);
+  border-color: var(--border-light);
+}
+.btn-outline:hover {
+  border-color: rgba(255, 255, 255, 0.27);
+  color: var(--primary-light);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+/* ────────────────────────────────────────────
+   MARQUEE
+──────────────────────────────────────────── */
+.marquee {
+  position: relative; z-index: 2;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: rgba(6, 8, 13, 0.48);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  padding: 16px 0;
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
+}
+.marquee-track {
+  display: flex; align-items: center; gap: 32px;
+  width: max-content;
+  animation: marquee 34s linear infinite;
+}
+.marquee:hover .marquee-track { animation-play-state: paused; }
+.marquee-track span {
+  font-size: 0.76rem; font-weight: 700;
+  letter-spacing: 3.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  transition: color var(--transition-fast);
+}
+.marquee-track span:hover { color: var(--text); }
+.marquee-track b { color: var(--border-light); font-size: 0.75rem; }
+@keyframes marquee { to { transform: translateX(-50%); } }
+
+/* ────────────────────────────────────────────
+   SECTIONS
+──────────────────────────────────────────── */
+section { position: relative; z-index: 2; padding: 110px 0; }
+.section-header { margin-bottom: 54px; }
+
+.section-eyebrow {
+  font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 2.4px; text-transform: uppercase;
+  color: var(--primary-light);
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 14px;
+}
+.section-eyebrow::after {
+  content: '';
+  flex: 1; max-width: 48px; height: 1px;
+  background: var(--border-light);
+}
+.section-title {
+  font-size: clamp(1.85rem, 4vw, 2.65rem);
+  font-weight: 800; letter-spacing: -1.2px;
+  color: var(--text);
+  margin-bottom: 12px; line-height: 1.1;
+}
+.section-subtitle {
+  font-size: 0.96rem; color: var(--text-muted);
+  line-height: 1.75; max-width: 480px;
+}
+
+.divider {
+  width: 100%; height: 1px;
+  background: var(--border);
+  position: relative; z-index: 2;
+}
+
+/* ────────────────────────────────────────────
+   SPOTLIGHT
+──────────────────────────────────────────── */
+.spot { position: relative; overflow: hidden; }
+.spot::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(320px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.036), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.35s var(--ease);
+  pointer-events: none;
+  z-index: 0;
+}
+.spot:hover::after { opacity: 1; }
+.spot > * { position: relative; z-index: 1; }
+
+/* ────────────────────────────────────────────
+   FEATURES — bento
+──────────────────────────────────────────── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+}
+.feature-card {
+  grid-column: span 2;
+  background: var(--bg-card);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 30px 28px;
+  min-height: 220px;
+  display: flex; flex-direction: column;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 32px rgba(0, 0, 0, 0.35);
+  transition: transform 0.4s var(--ease-out), border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+.feature-card:nth-child(1) { grid-column: span 4; }
+.feature-card:nth-child(4) { grid-column: span 4; }
+.feature-card:nth-child(5),
+.feature-card:nth-child(6) { grid-column: span 3; }
+
+.feature-card.visible:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-light);
+  background: var(--bg-card-hover);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.feature-num {
+  position: absolute !important;
+  top: 22px; right: 24px;
+  font-size: 0.72rem; font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  opacity: 0.55;
+  transition: color var(--transition), opacity var(--transition);
+}
+.feature-card:hover .feature-num { color: var(--primary-light); opacity: 1; }
+
+.feature-icon-wrap {
+  width: 46px; height: 46px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.121);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px;
+  transition: all 0.35s var(--ease-out);
+}
+.feature-icon-wrap svg { width: 20px; height: 20px; color: var(--primary-light); stroke-width: 1.8; }
+.feature-card:hover .feature-icon-wrap {
+  border-color: rgba(255, 255, 255, 0.27);
+  background: rgba(255, 255, 255, 0.088);
+}
+.feature-title {
+  font-size: 1.04rem; font-weight: 700;
+  color: var(--text); margin-bottom: 8px;
+  letter-spacing: -0.2px; line-height: 1.3;
+}
+.feature-desc { font-size: 0.88rem; color: var(--text-muted); line-height: 1.7; max-width: 520px; }
+
+/* ────────────────────────────────────────────
+   VIDEO
+──────────────────────────────────────────── */
+.video-section-container {
+  display: grid; grid-template-columns: 1fr 1.1fr;
+  gap: 60px; align-items: center;
+}
+.video-embed-wrap {
+  position: relative;
+  border-radius: 16px; overflow: hidden;
+  border: 1px solid var(--border-light);
+  background: var(--bg-card);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  aspect-ratio: 16/9;
+  box-shadow: 0 28px 68px rgba(0, 0, 0, 0.6);
+  transition: transform 0.45s var(--ease-out), border-color var(--transition);
+}
+.video-embed-wrap:hover { transform: translateY(-4px); border-color: rgba(255, 255, 255, 0.21); }
+.video-embed-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+
+.video-bullets { margin-top: 28px; display: flex; flex-direction: column; gap: 13px; }
+.video-bullet { display: flex; align-items: center; gap: 13px; }
+.video-bullet-icon {
+  width: 32px; height: 32px; border-radius: 9px;
+  background: rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.121);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.video-bullet-icon svg { width: 14px; height: 14px; color: var(--primary-light); }
+.video-bullet-text { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+
+/* ────────────────────────────────────────────
+   SCREENSHOTS
+──────────────────────────────────────────── */
+
+/* ────────────────────────────────────────────
+   PRICING
+──────────────────────────────────────────── */
+.pricing-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 14px; align-items: stretch;
+}
+.pricing-card {
+  background: var(--bg-card);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 24px;
+  display: flex; flex-direction: column;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 32px rgba(0, 0, 0, 0.35);
+  transition: transform 0.4s var(--ease-out), border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+.pricing-card.visible:hover {
+  border-color: var(--border-light);
+  background: var(--bg-card-hover);
+  transform: translateY(-5px);
+  box-shadow: 0 28px 60px rgba(0, 0, 0, 0.58);
+}
+.pricing-card.popular {
+  border-color: rgba(255, 255, 255, 0.248);
+  background: rgba(11, 16, 28, 0.58);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.084), 0 18px 46px rgba(0, 0, 0, 0.5);
+}
+.pricing-card.popular.visible:hover {
+  border-color: rgba(255, 255, 255, 0.39);
+  background: rgba(15, 22, 38, 0.72);
+}
+
+.pricing-badge {
+  position: absolute !important;
+  top: 16px; right: 16px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 0.65rem; font-weight: 700;
+  padding: 4px 10px; border-radius: 99px;
+  letter-spacing: 0.4px;
+  z-index: 3 !important;
+}
+.pricing-duration {
+  font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.8px;
+  color: var(--text-muted); margin-bottom: 12px;
+}
+.pricing-price {
+  font-size: 2.6rem; font-weight: 800;
+  color: var(--text); letter-spacing: -1.8px; line-height: 1;
+  margin-bottom: 4px;
+  display: flex; align-items: flex-start; gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.pricing-price .currency {
+  font-size: 1rem; font-weight: 600;
+  margin-top: 6px; letter-spacing: 0; color: var(--text-muted);
+}
+.pricing-period { font-size: 0.76rem; color: var(--text-muted); margin-bottom: 22px; }
+.pricing-features {
+  list-style: none; flex: 1;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 24px;
+}
+.pricing-features li {
+  display: flex; align-items: flex-start; gap: 9px;
+  font-size: 0.84rem; color: var(--text-muted); line-height: 1.45;
+}
+.pricing-features li .check {
+  width: 17px; height: 17px; border-radius: 50%;
+  background: rgba(34, 197, 94, 0.1);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.pricing-features li .check svg { width: 8px; height: 8px; color: var(--success); }
+
+/* ────────────────────────────────────────────
+   SUPPORT
+──────────────────────────────────────────── */
+.support-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 14px; max-width: 840px; margin: 0 auto;
+}
+.support-card {
+  background: var(--bg-card);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 30px 22px;
+  text-align: center;
+  text-decoration: none;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 32px rgba(0, 0, 0, 0.35);
+  transition: opacity 0.75s var(--ease-out), filter 0.75s var(--ease-out), transform 0.4s var(--ease-out), border-color var(--transition), background var(--transition);
+}
+.support-card.visible:hover {
+  border-color: var(--border-light);
+  transform: translateY(-4px);
+  background: var(--bg-card-hover);
+}
+.support-icon {
+  width: 46px; height: 46px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.121);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 4px;
+  transition: all 0.35s var(--ease-out);
+}
+.support-icon svg { width: 20px; height: 20px; color: var(--primary-light); }
+.support-card:hover .support-icon {
+  background: rgba(255, 255, 255, 0.088);
+  border-color: rgba(255, 255, 255, 0.27);
+}
+.support-label {
+  font-size: 0.68rem; text-transform: uppercase;
+  letter-spacing: 1.6px; color: var(--text-muted); font-weight: 700;
+}
+.support-value { font-size: 0.9rem; color: var(--text); font-weight: 600; word-break: break-all; line-height: 1.4; }
+.support-hours { font-size: 0.74rem; color: var(--text-muted); line-height: 1.4; }
+
+/* ────────────────────────────────────────────
+   MODALS
+──────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(2, 3, 6, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 2000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0; visibility: hidden;
+  transition: opacity 0.25s var(--ease), visibility 0.25s;
+}
+.modal-overlay.open { opacity: 1; visibility: visible; }
+.modal {
+  background: rgba(7, 9, 15, 0.76);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  width: 100%; max-width: 600px; max-height: 84vh;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 40px 96px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateY(20px) scale(0.96);
+  opacity: 0;
+  transition: transform 0.38s var(--spring), opacity 0.25s var(--ease);
+}
+.modal-overlay.open .modal { transform: none; opacity: 1; }
+.modal-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.modal-header h3 { font-size: 1rem; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
+.modal-close {
+  width: 32px; height: 32px; border-radius: 9px;
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.03); color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition-fast);
+}
+.modal-close:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.modal-body { padding: 24px; overflow-y: auto; flex: 1; }
+.modal-content-text { font-size: 0.9rem; color: var(--text-muted); line-height: 1.8; white-space: pre-wrap; }
+.modal-placeholder { text-align: center; padding: 32px 20px; }
+.modal-placeholder-icon {
+  width: 56px; height: 56px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.121);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px;
+}
+.modal-placeholder-icon svg { width: 22px; height: 22px; color: var(--primary-light); }
+.modal-placeholder h4 { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+.modal-placeholder p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.7; max-width: 340px; margin: 0 auto; }
+.modal-hint {
+  display: inline-block; margin-top: 16px;
+  padding: 6px 12px; border-radius: 8px;
+  border: 1px solid var(--border-light);
+  font-size: 0.76rem; color: var(--text-muted);
+  font-family: var(--mono);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.payment-popup-content { text-align: center; padding: 18px 10px; }
+.payment-popup-content p { font-size: 0.94rem; color: var(--text-muted); margin-bottom: 18px; line-height: 1.65; }
+.payment-popup-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 24px;
+  background: var(--primary); color: var(--on-primary);
+  border-radius: 11px; text-decoration: none;
+  font-weight: 600; font-size: 0.9rem;
+  transition: background var(--transition-fast);
+}
+.payment-popup-link:hover { background: var(--primary-dark); }
+
+/* ────────────────────────────────────────────
+   FOOTER
+──────────────────────────────────────────── */
+.footer {
+  position: relative; z-index: 2;
+  border-top: 1px solid var(--border);
+  background: rgba(4, 5, 9, 0.55);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  padding: 56px 32px 0;
+  overflow: hidden;
+}
+.footer-inner {
+  max-width: 1160px; margin: 0 auto 38px;
+  display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px;
+}
+.footer-brand-name {
+  font-size: 1.08rem; font-weight: 800; color: var(--text);
+  letter-spacing: -0.3px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 9px;
+}
+.footer-tagline { color: var(--text-muted); font-size: 0.87rem; line-height: 1.65; max-width: 250px; }
+.footer-col h4 {
+  font-size: 0.68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 2px;
+  color: var(--text-muted); margin-bottom: 14px;
+}
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.footer-col ul li a {
+  color: var(--text-muted); text-decoration: none;
+  font-size: 0.87rem; cursor: pointer;
+  display: inline-block;
+  transition: color var(--transition-fast);
+}
+.footer-col ul li a:hover { color: var(--text); }
+
+.footer-bottom {
+  max-width: 1160px; margin: 0 auto;
+  padding-top: 22px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+}
+.footer-bottom p { color: var(--text-muted); font-size: 0.8rem; }
+.footer-socials { display: flex; gap: 8px; }
+.footer-socials a {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 9px;
+  border: 1px solid var(--border-light);
+  background: rgba(8, 10, 16, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--text-muted); text-decoration: none;
+  font-size: 0.78rem; font-weight: 500;
+  transition: all var(--transition-fast);
+}
+.footer-socials a:hover { border-color: rgba(255, 255, 255, 0.27); color: var(--text); background: rgba(255, 255, 255, 0.06); }
+
+.footer-mark {
+  font-size: clamp(3.4rem, 16vw, 13rem);
+  font-weight: 900; text-align: center;
+  line-height: 0.84; letter-spacing: -0.05em;
+  margin-top: 32px;
+  transform: translateY(16%);
+  color: rgba(255, 255, 255, 0.025);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ────────────────────────────────────────────
+   TOAST
+──────────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: rgba(7, 9, 15, 0.82);
+  backdrop-filter: var(--blur-heavy);
+  -webkit-backdrop-filter: var(--blur-heavy);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 13px 18px;
+  font-size: 0.85rem; color: var(--text);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.72);
+  z-index: 9999;
+  transform: translateY(80px);
+  opacity: 0;
+  transition: transform 0.35s var(--ease-out), opacity 0.25s var(--ease);
+  max-width: 340px;
+  display: flex; align-items: center; gap: 10px;
+  pointer-events: none;
+}
+.toast.show { transform: none; opacity: 1; }
+.toast.success { border-left: 3px solid var(--success); }
+.toast.error   { border-left: 3px solid var(--danger); }
+.toast.info    { border-left: 3px solid var(--primary-light); }
+
+/* ────────────────────────────────────────────
+   ANIMATIONS
+──────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* анимации появления при заходе на сайт убраны */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.75s var(--ease-out),
+    transform 0.75s var(--ease-out),
+    border-color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+.reveal.visible { opacity: 1; transform: translateY(0); }
+
+.reveal-d1 { transition-delay: 0.04s; }
+.reveal-d2 { transition-delay: 0.1s; }
+.reveal-d3 { transition-delay: 0.16s; }
+.reveal-d4 { transition-delay: 0.22s; }
+.reveal-d5 { transition-delay: 0.28s; }
+.reveal-d6 { transition-delay: 0.34s; }
+
+.reveal.visible.settled { transition-delay: 0s; }
+
+/* ============================================================
+   SURFACE · AUTH · CABINET
+   ============================================================ */
+
+.glass {
+  position: relative;
+  background: var(--bg-card);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border-light);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.feature-card, .pricing-card {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.feature-card.tilting, .pricing-card.tilting {
+  transition: transform 0.12s linear, border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+.feature-card.visible.tilting:hover, .pricing-card.visible.tilting:hover { transform: var(--tilt, none); }
+
+.reveal[style*="--st"] { transition-delay: var(--st); }
+.reveal.visible.settled[style*="--st"] { transition-delay: 0s; }
+
+/* ── Кнопка авторизации в шапке ── */
+.nav-auth {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px;
+  padding: 0 13px 0 5px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  background: rgba(8, 10, 16, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text);
+  font-family: var(--font); font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.nav-auth:hover { border-color: rgba(255, 255, 255, 0.27); background: rgba(255, 255, 255, 0.07); }
+.nav-auth-avatar {
+  width: 26px; height: 26px; border-radius: 7px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.088); color: var(--primary-light);
+  font-size: 0.76rem; font-weight: 800; text-transform: uppercase;
+  flex-shrink: 0;
+}
+.nav-auth-avatar svg { width: 14px; height: 14px; }
+.nav-auth.logged .nav-auth-avatar { background: var(--primary); color: var(--on-primary); }
+.nav-auth-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.nav-auth-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+.nav-auth-bal { font-size: 0.68rem; font-weight: 700; color: var(--primary-light); font-variant-numeric: tabular-nums; }
+.nav-auth-bal[hidden] { display: none; }
+
+.mobile-auth {
+  margin-top: 6px; padding: 11px 14px; border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.193);
+  background: rgba(255, 255, 255, 0.066);
+  color: var(--primary-light); font-family: var(--font);
+  font-size: 0.95rem; font-weight: 600; cursor: pointer; text-align: left;
+}
+
+/* ── Auth modal ── */
+.auth-modal { max-width: 430px; }
+.auth-modal .modal-header { padding: 16px 18px; gap: 12px; }
+.auth-tabs {
+  position: relative; display: flex; flex: 1; padding: 3px;
+  border-radius: 11px;
+  background: rgba(3, 4, 7, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-light);
+}
+.auth-tab {
+  position: relative; z-index: 1; flex: 1;
+  padding: 8px 10px; border: none; background: none; cursor: pointer;
+  font-family: var(--font); font-size: 0.85rem; font-weight: 600;
+  color: var(--text-muted); border-radius: 8px;
+  transition: color var(--transition-fast);
+}
+.auth-tab.active { color: var(--on-primary); }
+.auth-tab-indicator {
+  position: absolute; top: 3px; bottom: 3px; left: 3px;
+  width: calc(50% - 3px); border-radius: 8px;
+  background: var(--primary);
+  transition: transform 0.35s var(--spring);
+}
+.auth-tabs.is-register .auth-tab-indicator { transform: translateX(100%); }
+
+.auth-sub { font-size: 0.88rem; color: var(--text-muted); margin-bottom: 18px; }
+.auth-form { display: flex; flex-direction: column; gap: 13px; }
+
+.field { position: relative; display: block; }
+.field input {
+  width: 100%; height: 52px; padding: 20px 15px 6px;
+  border-radius: 11px; border: 1px solid var(--border-light);
+  background: rgba(3, 4, 7, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--text); font-family: var(--font); font-size: 0.92rem;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.field input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.088);
+}
+.field > span {
+  position: absolute; left: 15px; top: 15px;
+  font-size: 0.88rem; color: var(--text-muted);
+  pointer-events: none; transform-origin: left top;
+  transition: transform 0.25s var(--spring), color var(--transition-fast);
+}
+.field input:focus + span,
+.field input:not(:placeholder-shown) + span {
+  transform: translateY(-8px) scale(0.76);
+  color: var(--primary-light);
+}
+
+.field-register {
+  max-height: 0; opacity: 0; margin-bottom: -13px; overflow: hidden;
+  transform: translateY(-6px); pointer-events: none;
+  transition: max-height 0.4s var(--spring), opacity 0.25s var(--ease), margin 0.4s var(--spring), transform 0.4s var(--spring);
+}
+.auth-form.is-register .field-register {
+  max-height: 60px; opacity: 1; margin-bottom: 0; transform: none; pointer-events: auto; overflow: visible;
+}
+.auth-form.switching { animation: tabSwap 0.35s var(--spring); }
+@keyframes tabSwap { 0% { opacity: 0.5; transform: translateY(6px); } 100% { opacity: 1; transform: none; } }
+
+.auth-error {
+  min-height: 0; max-height: 0; overflow: hidden; opacity: 0;
+  font-size: 0.82rem; color: var(--danger);
+  padding: 0 12px; border-radius: 10px;
+  background: rgba(248, 113, 113, 0.1); border: 1px solid transparent;
+  transition: max-height 0.35s var(--spring), opacity 0.25s, padding 0.35s var(--spring), border-color 0.25s;
+}
+.auth-error.show { max-height: 80px; opacity: 1; padding: 10px 12px; border-color: rgba(248, 113, 113, 0.25); }
+.auth-form.shake { animation: shake 0.4s var(--spring); }
+@keyframes shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+
+.auth-submit { width: 100%; height: 46px; margin-top: 2px; }
+.spinner {
+  display: none; width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35); border-top-color: #fff;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn.loading { pointer-events: none; opacity: 0.85; }
+.btn.loading .spinner { display: inline-block; }
+
+/* ── Cabinet Modal (fallback on index.html) ── */
+.cabinet-modal { max-width: 520px; }
+.cab-user { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.cab-avatar {
+  width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.25rem; font-weight: 800; color: var(--on-primary); text-transform: uppercase;
+  background: var(--primary);
+  overflow: hidden;
+}
+.cab-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.cab-user-info { min-width: 0; flex: 1; }
+.cab-name { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cab-email { font-size: 0.82rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; }
+.cab-role {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 24px; padding: 0 10px; border-radius: 99px; flex-shrink: 0;
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.4px; line-height: 1;
+  color: var(--primary-light);
+  background: rgba(255, 255, 255, 0.077);
+  border: 1px solid rgba(255, 255, 255, 0.165);
+}
+.cab-role.admin {
+  color: #FCD34D;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.34);
+}
+
+.cab-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.cab-stat {
+  padding: 18px 20px;
+  border-radius: 15px;
+  background: var(--bg-card);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 118px;
+}
+.cab-stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.cab-stat-label {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 1.3px;
+  text-transform: uppercase; color: var(--text-muted);
+  line-height: 1.2;
+}
+.cab-stat-copy-icon {
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+}
+.cab-stat-clickable { cursor: pointer; transition: border-color var(--transition-fast), background var(--transition-fast); }
+.cab-stat-clickable:hover { border-color: rgba(255, 255, 255, 0.27); background: var(--bg-card-hover); }
+.cab-stat-clickable:hover .cab-stat-copy-icon { color: var(--primary-light); }
+
+.cab-stat-value {
+  font-size: 1.42rem; font-weight: 800; letter-spacing: -0.4px;
+  line-height: 1.25;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.cab-stat-value.cab-ref,
+.cab-stat-value.cab-hwid-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.4px;
+}
+.cab-stat-value.is-bound { color: var(--success); }
+.cab-stat-value.is-unbound { color: var(--text); }
+
+.cab-stat-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  margin-top: 8px;
+}
+
+.cab-section { margin-bottom: 20px; }
+.cab-section h4 { font-size: 0.72rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px; }
+
+.cab-purchases {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.cab-purchase {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 13px 16px; border-radius: 12px;
+  background: rgba(8, 10, 16, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-light);
+  opacity: 0; transform: translateY(8px);
+  animation: fadeUp 0.45s var(--spring) forwards; animation-delay: var(--st, 0s);
+}
+.cab-purchase-info { min-width: 0; flex: 1; }
+.cab-purchase-title { font-size: 0.9rem; font-weight: 600; color: var(--text); line-height: 1.35; }
+.cab-purchase-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+.cab-purchase-badge {
+  display: inline-flex; align-items: center;
+  height: 26px; padding: 0 11px; border-radius: 99px;
+  font-size: 0.72rem; font-weight: 600; white-space: nowrap; flex-shrink: 0;
+  color: var(--primary-light);
+  background: rgba(255, 255, 255, 0.066);
+  border: 1px solid rgba(255, 255, 255, 0.154);
+}
+.cab-purchase-badge.expired {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-light);
+}
+.cab-empty {
+  text-align: center;
+  padding: 22px 16px;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  background: rgba(8, 10, 16, 0.35);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px dashed var(--border-light);
+  border-radius: 12px;
+}
+
+.cab-key { display: flex; align-items: stretch; gap: 10px; }
+.cab-key-input {
+  height: 46px;
+  padding: 0 16px;
+  border-radius: 11px;
+  border: 1px solid var(--border-light);
+  background: rgba(3, 4, 7, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--text);
+  font-size: 0.92rem;
+  font-family: var(--mono);
+  letter-spacing: 0.8px;
+  flex: 1; min-width: 0;
+  text-transform: uppercase;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.cab-key-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.088);
+}
+.cab-key .btn {
+  height: 46px;
+  padding: 0 22px;
+  flex-shrink: 0;
+}
+.cab-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.cab-actions .btn { flex: 1; height: 42px; padding: 0 18px; }
+.cab-actions [hidden] { display: none !important; }
+.cab-logout:hover { border-color: rgba(248, 113, 113, 0.45); color: var(--danger); background: rgba(248, 113, 113, 0.1); }
+
+/* ============================================================
+   CABINET PAGE (/cabinet)
+   ============================================================ */
+.cab-page {
+  position: relative;
+  z-index: 2;
+  padding: 98px 0 72px;
+  min-height: 100vh;
+}
+
+.cab-nav-link {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 0.82rem;
+}
+
+.cab-hero {
+  border-radius: 18px;
+  padding: 22px 26px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.cab-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex: 1;
+}
+.cab-avatar-lg {
+  width: 58px;
+  height: 58px;
+  border-radius: 15px;
+  font-size: 1.4rem;
+}
+.cab-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 5px;
+}
+.cab-hero-name {
+  font-size: 1.28rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+  color: var(--text);
+}
+.cab-sub-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  line-height: 1;
+}
+.cab-sub-pill.active {
+  color: #86EFAC;
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(34, 197, 94, 0.32);
+}
+.cab-sub-pill.inactive {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-light);
+}
+.cab-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cab-hero-actions .btn {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 0.85rem;
+}
+
+.cab-layout {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.cab-sidebar {
+  position: sticky;
+  top: 88px;
+  border-radius: 18px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cab-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: 0.87rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  text-align: left;
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+.cab-nav-btn svg {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.cab-nav-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cab-panel { display: none; }
+.cab-panel.active {
+  display: block;
+  animation: fadeUp 0.3s var(--ease-out) both;
+}
+
+.cab-stats-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+  align-items: stretch;
+}
+
+.cab-card {
+  border-radius: 18px;
+  padding: 24px 26px;
+}
+.cab-card h2 {
+  font-size: 1.04rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+.cab-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.cab-card-head h2 { margin-bottom: 0; }
+.cab-card-sub {
+  font-size: 0.87rem;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.client-hero-card { margin-bottom: 16px; }
+.client-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.client-card-title {
+  font-size: 1.45rem !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.4px;
+  margin-bottom: 8px !important;
+}
+.client-card-desc {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  max-width: 600px;
+  margin-bottom: 22px;
+  line-height: 1.65;
+}
+.client-dl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.client-dl-row .btn {
+  height: 44px;
+  padding: 0 22px;
+}
+.client-meta-note {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 11px;
+  background: rgba(8, 10, 16, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-light);
+  font-size: 0.82rem;
+  color: var(--primary-light);
+  font-weight: 600;
+}
+
+.client-locked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: rgba(248, 113, 113, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(248, 113, 113, 0.24);
+}
+.client-locked-text strong {
+  display: block;
+  font-size: 0.94rem;
+  color: #FCA5A5;
+  margin-bottom: 4px;
+}
+.client-locked-text p {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  max-width: 480px;
+  line-height: 1.55;
+}
+.client-locked-btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.client-locked-btns .btn {
+  height: 40px;
+  padding: 0 16px;
+  font-size: 0.84rem;
+}
+
+.cab-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.cab-step-card {
+  display: flex;
+  flex-direction: column;
+}
+.cab-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 26px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.077);
+  border: 1px solid rgba(255, 255, 255, 0.154);
+  color: var(--primary-light);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+.cab-step-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+.cab-step-desc {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.cab-funpay-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.cab-funpay-row .btn {
+  height: 44px;
+  padding: 0 22px;
+}
+
+.cab-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.cab-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+.cab-settings-form .btn {
+  height: 42px;
+  padding: 0 20px;
+  align-self: flex-start;
+}
+
+/* ────────────────────────────────────────────
+   RESPONSIVE
+──────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .pricing-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .footer-inner { grid-template-columns: 1fr 1fr; gap: 40px; }
+  .hero-inner { gap: 40px; }
+  .video-section-container { gap: 44px; }
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+  .feature-card,
+  .feature-card:nth-child(1),
+  .feature-card:nth-child(4),
+  .feature-card:nth-child(5),
+  .feature-card:nth-child(6) { grid-column: span 1; }
+  .feature-card:nth-child(1) { grid-column: span 2; }
+}
+
+@media (max-width: 900px) {
+  .cab-layout { grid-template-columns: 1fr; }
+  .cab-sidebar {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 8px;
+  }
+  .cab-nav-btn { white-space: nowrap; width: auto; flex-shrink: 0; height: 40px; }
+  .cab-stats-3, .cab-steps-grid, .cab-settings-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 860px) {
+  .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+  .hero-left { align-items: center; text-align: center; }
+  .hero-desc { margin: 0 auto 30px; max-width: 92%; }
+  .hero-actions, .hero-chips { justify-content: center; }
+  .nav-center { display: none; }
+  .hamburger { display: flex; }
+  .nav-buy { display: none; }
+  .video-section-container { grid-template-columns: 1fr; gap: 36px; }
+  .support-grid { grid-template-columns: 1fr; max-width: 380px; }
+  .section-subtitle { max-width: 100%; margin: 0 auto; }
+  .section-header { text-align: center; }
+  .section-eyebrow { justify-content: center; }
+  .section-eyebrow::after { display: none; }
+  .video-bullets { align-items: flex-start; max-width: 340px; margin-left: auto; margin-right: auto; }
+  .float-chip-a { right: 4%; }
+  .float-chip-b { left: 4%; }
+  .nav-auth { padding: 0 10px 0 5px; }
+  .nav-auth-name { max-width: 72px; }
+}
+
+@media (max-width: 640px) {
+  .navbar { padding: 0 12px; }
+  .footer { padding-left: 20px; padding-right: 20px; }
+  .hero-inner, .container { padding: 0 18px; }
+  section { padding: 72px 0; }
+  .hero { padding-top: 106px; }
+  .hero h1 { letter-spacing: -2.2px; }
+  .hero-desc { font-size: 0.94rem; }
+  .hero-actions { flex-direction: column; align-items: center; width: 100%; }
+  .hero-actions .btn { width: 100%; max-width: 290px; }
+  .pricing-grid, .features-grid { grid-template-columns: 1fr; }
+  .feature-card, .feature-card:nth-child(n) { grid-column: span 1; min-height: 0; }
+  .pricing-card { padding: 24px 20px; }
+  .footer-inner { grid-template-columns: 1fr; gap: 30px; text-align: center; }
+  .footer-brand-name { justify-content: center; }
+  .footer-tagline { margin: 0 auto; }
+  .footer-bottom { flex-direction: column; align-items: center; text-align: center; gap: 14px; }
+  .footer-socials { width: 100%; justify-content: center; }
+  .modal { max-width: 96%; max-height: 90vh; }
+  .section-title { letter-spacing: -0.8px; }
+  .scroll-hint { display: none; }
+  .toast { right: 16px; left: 16px; max-width: none; }
+  .lang-dropdown { right: -40px; }
+  .nav-right { gap: 6px; }
+  .lang-btn { padding: 0 8px; }
+  .nav-auth-text { display: none; }
+  .nav-auth { padding: 0 5px; }
+  .nav-auth.logged .nav-auth-text { display: flex; }
+  .nav-auth.logged .nav-auth-name { display: none; }
+  .nav-auth.logged { padding: 0 10px 0 5px; }
+  .cab-nav-link { padding: 0 10px; font-size: 0.78rem; }
+  .cab-hero { padding: 18px 20px; }
+  .cab-card { padding: 20px; }
+  .cab-stats { grid-template-columns: 1fr; }
+  .cab-key { flex-direction: column; }
+  .cab-key .btn { width: 100%; }
+  .cab-actions { flex-direction: column; }
+  .cab-hero-actions { width: 100%; }
+  .cab-hero-actions .btn { flex: 1; }
+}
+
+@media (max-width: 380px) {
+  .nav-pill { padding-left: 14px; padding-right: 10px; }
+  .logo-text { font-size: 0.98rem; }
+  .cab-nav-link { padding: 0 8px; font-size: 0.74rem; }
+}
+
+@supports (-webkit-touch-callout: none) {
+  .hero { min-height: -webkit-fill-available; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .marquee-track { animation: none; }
+  .smoke-canvas { display: none; }
+}
+
+[hidden] { display: none !important; }
+.cab-panel, .cab-panel.active { padding: 0; }
+
+.cab-step-card { align-items: center; text-align: center; }
+.cab-step-num { margin-left: auto; margin-right: auto; }
+
+.client-hero-card { text-align: center; }
+.client-badge-row,
+.client-dl-row,
+.client-locked-btns { justify-content: center; }
+.client-card-desc { margin-left: auto; margin-right: auto; }
+.client-locked { flex-direction: column; text-align: center; }
+.client-locked-text p { margin: 0 auto; }
+
+/* ────────────────────────────────────────────
+   СОГЛАШЕНИЕ ПРИ РЕГИСТРАЦИИ
+──────────────────────────────────────────── */
+.auth-agree {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 0.82rem; line-height: 1.45; color: var(--text-muted);
+  cursor: pointer; user-select: none;
+}
+.auth-form.is-register .auth-agree.field-register { max-height: 70px; }
+.auth-agree input {
+  appearance: none; -webkit-appearance: none;
+  width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px;
+  border-radius: 5px; border: 1px solid var(--border-light);
+  background: rgba(3, 4, 7, 0.65);
+  display: grid; place-content: center; cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.auth-agree input::after {
+  content: ''; width: 9px; height: 5px;
+  border-left: 2px solid #fff; border-bottom: 2px solid #fff;
+  transform: rotate(-45deg) translate(1px, -1px) scale(0);
+  transition: transform 0.15s var(--ease);
+}
+.auth-agree input:checked { background: var(--primary); border-color: var(--primary); }
+.auth-agree input:checked::after { transform: rotate(-45deg) translate(1px, -1px) scale(1); }
+.auth-agree input:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.138); outline: none; }
+.auth-agree a { color: var(--primary-light); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.auth-agree a:hover { color: var(--text); }
+
+/* Текст соглашения */
+.legal-text { font-size: 0.88rem; color: var(--text-muted); line-height: 1.75; }
+.legal-text h4 { color: var(--text); font-size: 0.95rem; font-weight: 700; margin: 20px 0 6px; }
+.legal-text h4:first-of-type { margin-top: 4px; }
+.legal-text p, .legal-text li { margin: 0 0 8px; }
+.legal-text ul { padding-left: 20px; margin: 0 0 8px; }
+.legal-text .legal-meta { font-size: 0.78rem; opacity: 0.75; margin-bottom: 14px; }
+.legal-text a { color: var(--primary-light); }
+#modalTerms .modal { max-width: 720px; }
+
+/* ────────────────────────────────────────────
+   АВАТАРКА В КАБИНЕТЕ
+──────────────────────────────────────────── */
+.cab-avatar-btn {
+  position: relative; padding: 0; border: 0; cursor: pointer;
+  font-family: inherit; flex-shrink: 0;
+}
+.cab-avatar-btn .cab-avatar-edit {
+  position: absolute; inset: 0; border-radius: inherit;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 4, 7, 0.62); color: #fff;
+  opacity: 0; transition: opacity var(--transition-fast);
+}
+.cab-avatar-btn:hover .cab-avatar-edit,
+.cab-avatar-btn:focus-visible .cab-avatar-edit { opacity: 1; }
+.cab-avatar-btn.busy { pointer-events: none; opacity: 0.6; }
+
+.cab-avatar-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.cab-avatar-row .cab-avatar { width: 64px; height: 64px; border-radius: 16px; font-size: 1.5rem; }
+.cab-avatar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.cab-avatar-actions .btn { height: 38px; padding: 0 16px; font-size: 0.84rem; }
+.cab-field-hint { font-size: 0.76rem; color: var(--text-muted); line-height: 1.5; }
+.field input[readonly] { opacity: 0.7; cursor: not-allowed; }
+.cab-settings-form + .cab-settings-form { margin-top: 18px; }
+
+.cab-avatar-btn { border-radius: 15px; background: none; }
+.nav-auth-avatar { overflow: hidden; }
+.nav-auth-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
+
+/* ── Страницы документов ── */
+.legal-page { position: relative; z-index: 2; min-height: 100vh; padding: 48px 20px 64px; display: flex; justify-content: center; }
+.legal-card { width: 100%; max-width: 820px; height: fit-content; padding: 36px 40px; border-radius: 20px; }
+.legal-card h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.4px; margin: 14px 0 6px; }
+.legal-back { font-size: 0.85rem; color: var(--text-muted); text-decoration: none; }
+.legal-back:hover { color: var(--text); }
+.legal-links { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border); font-size: 0.84rem; }
+.legal-links a { color: var(--text-muted); text-decoration: none; }
+.legal-links a:hover { color: var(--primary-light); }
+@media (max-width: 600px) { .legal-card { padding: 24px 20px; } }
+
+
+/* ============================================================
+   CABINET NAVIGATION v2
+   ============================================================ */
+.cab-crumbs {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin: 0 4px 14px;
+  font-size: 0.8rem; color: var(--text-muted);
+}
+.cab-crumbs a { color: var(--text-muted); text-decoration: none; transition: color var(--transition-fast); }
+.cab-crumbs a:hover { color: var(--text); }
+.cab-crumbs b { color: var(--text); font-weight: 600; }
+.cab-crumb-sep { opacity: 0.4; }
+
+.cab-layout { scroll-margin-top: 88px; }
+.cab-layout, .cab-panel { scroll-margin-top: 88px; }
+.cab-panel:focus { outline: none; }
+
+.cab-sidebar { padding: 12px; gap: 2px; }
+.cab-nav { display: flex; flex-direction: column; gap: 3px; }
+.cab-side-label {
+  padding: 4px 12px 8px;
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 1.6px;
+  text-transform: uppercase; color: var(--text-muted); opacity: 0.8;
+}
+.cab-side-sep { height: 1px; background: var(--border); margin: 10px 6px; }
+
+.cab-nav-btn { position: relative; }
+.cab-nav-btn .cab-nav-label { flex: 1; min-width: 0; }
+.cab-nav-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+.cab-nav-btn.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+.cab-nav-btn.active::before {
+  content: ""; position: absolute; left: -12px; top: 11px; bottom: 11px;
+  width: 3px; border-radius: 0 3px 3px 0; background: var(--primary);
+}
+.cab-nav-btn:focus-visible,
+.cab-side-link:focus-visible,
+.cab-tabbar-btn:focus-visible,
+.cab-quick-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55); outline-offset: 2px;
+}
+
+.cab-nav-key {
+  font-family: var(--mono); font-size: 0.68rem; line-height: 1;
+  padding: 4px 6px; border-radius: 6px;
+  color: var(--text-muted);
+  border: 1px solid var(--border-light);
+  background: rgba(255, 255, 255, 0.03);
+  opacity: 0; transition: opacity var(--transition-fast);
+}
+.cab-nav-btn:hover .cab-nav-key,
+.cab-nav-btn:focus-visible .cab-nav-key { opacity: 1; }
+
+.cab-nav-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+  color: var(--text-muted); background: rgba(255, 255, 255, 0.06);
+}
+.cab-nav-badge svg { width: 11px; height: 11px; }
+.cab-nav-badge[hidden] { display: none; }
+
+.cab-side-link {
+  display: flex; align-items: center; gap: 11px;
+  width: 100%; height: 40px; padding: 0 14px;
+  border-radius: 11px; border: 1px solid transparent; background: transparent;
+  color: var(--text-muted); font-family: var(--font); font-size: 0.85rem; font-weight: 600;
+  text-decoration: none; text-align: left; cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+}
+.cab-side-link svg { width: 16px; height: 16px; flex-shrink: 0; }
+.cab-side-link:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+.cab-side-link.cab-logout:hover { color: var(--danger); background: rgba(248, 113, 113, 0.1); border-color: rgba(248, 113, 113, 0.3); }
+
+.cab-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.cab-quick-btn {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-radius: 14px; cursor: pointer;
+  color: var(--text); font-family: var(--font); font-size: 0.88rem; font-weight: 600; text-align: left;
+  transition: border-color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+}
+.cab-quick-btn:hover { background: var(--bg-card-hover); border-color: rgba(255, 255, 255, 0.24); transform: translateY(-2px); }
+.cab-quick-ico {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border);
+}
+.cab-quick-ico svg { width: 16px; height: 16px; }
+.cab-quick-text { flex: 1; min-width: 0; line-height: 1.25; }
+.cab-quick-arrow { width: 16px; height: 16px; color: var(--text-muted); transition: transform var(--transition-fast), color var(--transition-fast); }
+.cab-quick-btn:hover .cab-quick-arrow { transform: translateX(3px); color: var(--text); }
+
+/* нижняя панель на мобильных */
+.cab-tabbar { display: none; }
+
+@media (max-width: 900px) {
+  .cab-sidebar { display: none; }
+  .cab-page { padding-bottom: 104px; }
+  .cab-quick { grid-template-columns: 1fr; }
+  .cab-tabbar {
+    display: flex; position: fixed; left: 12px; right: 12px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 1500; padding: 6px; gap: 4px;
+    border-radius: 18px;
+    background: rgba(10, 10, 11, 0.82);
+    backdrop-filter: var(--blur-heavy); -webkit-backdrop-filter: var(--blur-heavy);
+    border: 1px solid var(--border-light);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  }
+  .cab-tabbar-btn {
+    position: relative; flex: 1; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    padding: 8px 4px; border-radius: 13px; border: 0; background: transparent;
+    color: var(--text-muted); font-family: var(--font); font-size: 0.68rem; font-weight: 600; cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+  }
+  .cab-tabbar-btn svg { width: 19px; height: 19px; }
+  .cab-tabbar-btn span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cab-tabbar-btn.active { color: #fff; background: rgba(255, 255, 255, 0.1); }
+  .cab-tabbar-dot {
+    position: absolute; top: 7px; right: calc(50% - 17px);
+    width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted);
+  }
+  .cab-tabbar-dot[hidden] { display: none; }
+  .cab-page ~ .toast { bottom: 96px; }
+}
+
+/* ============================================================
+   v10 — полностью тёмный, нейтральный. Дым на фоне, стекло с блюром,
+   motion: посимвольный заголовок, появление с блюром, шторка у заголовков,
+   заливка кнопок, параллакс героя, прячущаяся шапка.
+   Без градиентов, без бегущей строки.
+   ============================================================ */
+:root {
+  --bg:            #040405;
+  --bg-card:       rgba(2, 2, 3, 0.52);
+  --bg-card-hover: rgba(4, 4, 5, 0.64);
+  --border:        rgba(255, 255, 255, 0.07);
+  --border-light:  rgba(255, 255, 255, 0.18);
+  --blur:          blur(32px) saturate(110%);
+  --blur-heavy:    blur(44px) saturate(110%);
+}
+
+/* ── фон: чёрный + дым от шейдера ── */
+.bg-base { background: #040405; }
+.bg-base::after { display: none; }
+.smoke-canvas { opacity: 0.95; mix-blend-mode: screen; }
+.bg-grid, .cursor-glow, .aurora, .scroll-hint, .float-chip,
+.marquee, .footer-mark, .spot::after { display: none !important; }
+.hero-video-placeholder, .video-embed-placeholder { background: none; }
+
+/* ── карточки: тёмное матовое стекло, фон под ними заметно размыт ── */
+.feature-card, .pricing-card, .support-card, .glass, .cab-card, .cab-stat,
+.hero-video-frame, .video-embed-wrap, .legal-card, .nav-pill {
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+}
+
+/* ── без наклонов и теней ── */
+.tilt, .magnetic { transform: none !important; }
+.hero-float { animation: none; will-change: transform; }
+.feature-card, .pricing-card { transform-style: flat; }
+.nav-pill, .feature-card, .pricing-card, .support-card, .glass, .modal,
+.cab-card, .cab-stat, .hero-video-frame, .video-embed-wrap, .lang-dropdown,
+.mobile-menu, .toast, .navbar.scrolled .nav-pill,
+.btn-primary, .btn-primary:hover, .nav-buy { box-shadow: none; }
+
+.nav-pill, .feature-card, .pricing-card, .support-card, .glass, .cab-card,
+.cab-stat, .cab-hero, .cab-sidebar, .hero-video-frame, .video-embed-wrap,
+.legal-card, .modal { border-radius: 10px; }
+.btn, .nav-buy, .lang-btn, .nav-auth, .chip, .field input { border-radius: 6px; }
+.chip { border-radius: 4px; }
+
+/* ── плотная вёрстка, без пустот ── */
+section { padding: 72px 0; }
+.section-header { margin-bottom: 32px; }
+.hero { min-height: 0; padding: 120px 0 56px; }
+.hero-inner { gap: 40px; }
+.hero h1 { font-size: clamp(3.2rem, 7vw, 5.8rem); letter-spacing: -3px; margin-bottom: 14px; }
+.hero-desc { margin-bottom: 24px; }
+.hero-actions { margin-bottom: 20px; }
+.feature-card { min-height: 0; padding: 26px 24px 28px; }
+.feature-icon-wrap { margin-bottom: 14px; }
+.pricing-card { padding: 26px 22px; }
+.support-card { padding: 24px 20px; }
+.footer { padding-top: 40px; }
+.footer-inner { margin-bottom: 28px; }
+.cab-page { padding: 88px 0 48px; min-height: 0; }
+.cab-card { padding: 20px 22px; }
+.legal-page { min-height: 0; padding: 88px 20px 48px; }
+.legal-card { padding: 28px 32px; }
+
+@media (min-width: 1025px) {
+  .features-grid { grid-template-columns: repeat(3, 1fr); }
+  .feature-card, .feature-card:nth-child(n) { grid-column: span 1; }
+}
+
+/* ============================================================
+   MOTION
+   ============================================================ */
+@keyframes charIn {
+  from { transform: translateY(108%) rotate(7deg); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(26px); filter: blur(8px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(48px) scale(0.97); filter: blur(10px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+@keyframes lineGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+/* заголовок героя: буквы выезжают из-под маски */
+.char {
+  display: inline-block;
+  transform-origin: 0 100%;
+  animation: charIn 0.95s var(--spring) both;
+  animation-delay: calc(var(--i, 0) * 55ms + 0.15s);
+}
+.anim-up, .anim-up-3, .anim-up-4, .anim-up-5 { animation: riseIn 0.95s var(--spring) both; }
+.anim-up   { animation-delay: 0.05s; }
+.anim-up-3 { animation-delay: 0.75s; }
+.anim-up-4 { animation-delay: 0.9s; }
+.anim-up-5 { animation-delay: 1.05s; }
+.anim-right { animation: slideIn 1.1s var(--spring) 0.5s both; }
+
+/* появление блоков при скролле: подъём + снятие блюра */
+.reveal {
+  opacity: 0;
+  transform: translateY(48px) scale(0.985);
+  filter: blur(10px);
+  transition:
+    opacity 0.9s var(--spring),
+    transform 1s var(--spring),
+    filter 0.9s var(--spring),
+    border-color var(--transition), background var(--transition);
+}
+.reveal.visible { opacity: 1; transform: none; filter: none; }
+
+/* заголовки секций: шторка слева направо */
+.reveal .section-title { clip-path: inset(-12% 100% -12% 0); }
+.reveal.visible .section-title {
+  clip-path: inset(-12% -2% -12% 0);
+  transition: clip-path 1.2s var(--spring) 0.2s;
+}
+.section-eyebrow { position: relative; }
+.reveal .section-eyebrow::after {
+  content: ""; display: block; height: 1px; width: 56px; margin-top: 10px;
+  background: var(--border-light); transform-origin: 0 50%; transform: scaleX(0);
+}
+.reveal.visible .section-eyebrow::after { animation: lineGrow 0.9s var(--spring) 0.35s both; }
+
+/* разделители прорисовываются */
+.divider { transform-origin: 0 50%; }
+
+/* карточки: подъём, линия снизу, поворот иконки */
+.feature-card, .pricing-card, .support-card {
+  background-image: linear-gradient(var(--primary-light), var(--primary-light));
+  background-repeat: no-repeat;
+  background-size: 0% 2px;
+  background-position: 0 100%;
+}
+.feature-card.visible, .pricing-card.visible, .support-card.visible {
+  transition:
+    opacity 0.9s var(--spring), transform 0.5s var(--spring), filter 0.9s var(--spring),
+    border-color var(--transition), background-color var(--transition), background-size 0.7s var(--spring);
+}
+.feature-card.visible:hover, .pricing-card.visible:hover, .support-card.visible:hover {
+  transform: translateY(-8px) !important;
+  background-size: 100% 2px;
+  border-color: var(--border-light);
+}
+.feature-icon-wrap { transition: transform 0.7s var(--spring); }
+.feature-card:hover .feature-icon-wrap { transform: rotate(-8deg) scale(1.08); }
+.feature-num { transition: transform 0.6s var(--spring), opacity 0.4s; }
+.feature-card:hover .feature-num { transform: translateX(6px); }
+
+/* кнопки: заливка снизу */
+.btn-outline { overflow: hidden; isolation: isolate; }
+.btn-outline::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: var(--primary-light);
+  transform: translateY(102%);
+  transition: transform 0.5s var(--spring);
+}
+.btn-outline:hover::before { transform: none; }
+.btn-outline:hover { color: var(--on-primary); border-color: var(--primary-light); }
+.btn-primary { transition: transform 0.4s var(--spring), background var(--transition-fast), color var(--transition-fast); }
+.btn-primary:hover { transform: translateY(-3px); }
+
+/* шапка прячется при прокрутке вниз */
+.navbar { transition: transform 0.6s var(--spring); }
+.navbar.nav-hide { transform: translateY(-140%); }
+
+/* список покупок и пункты прайса: каскад */
+.cab-purchase { animation: riseIn 0.8s var(--spring) both; animation-delay: var(--st, 0ms); }
+.pricing-features li { transition: transform 0.4s var(--spring); }
+.pricing-card:hover .pricing-features li { transform: translateX(4px); }
+
+@media (max-width: 640px) {
+  section { padding: 48px 0; }
+  .hero { padding-top: 100px; }
+  .legal-card { padding: 20px 16px; }
+  .reveal { filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .char, .anim-up, .anim-up-3, .anim-up-4, .anim-up-5, .anim-right, .cab-purchase { animation: none; }
+  .reveal { opacity: 1; transform: none; filter: none; }
+  .reveal .section-title { clip-path: none; }
+  .navbar.nav-hide { transform: none; }
+}
+/* ═════ PAYMENT SELECTION MODAL ═════ */
+.pay-modal {
+  max-width: 920px;
+  width: 95%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(11, 12, 16, 0.94);
+  backdrop-filter: blur(24px);
+}
+.pay-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pay-modal-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text, #f3f3f4);
+}
+.pay-modal-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 24px;
+  padding: 22px;
+}
+.pay-methods-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-height: 410px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.pay-methods-grid::-webkit-scrollbar { width: 5px; }
+.pay-methods-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 99px;
+}
+.pay-method-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 86px;
+  padding: 14px 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--text, #f3f3f4);
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, transform 0.15s;
+}
+.pay-method-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.pay-method-card.active {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--primary, #e6e7ea);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.pay-method-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #fff;
+  line-height: 1.2;
+}
+.pay-method-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+}
+.pay-method-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted, #9ca3af);
+  text-align: center;
+}
+.pay-method-card.active .pay-method-name {
+  color: #fff;
+}
+
+/* Правая колонка */
+.pay-summary {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-left: 22px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+.pay-summary-title {
+  margin: 0 0 16px;
+  font-size: 1.18rem;
+  font-weight: 800;
+  text-align: center;
+  color: #fff;
+}
+.pay-plans-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  margin-bottom: 16px;
+}
+.pay-plan-tab {
+  padding: 8px 6px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted, #8b8b93);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+.pay-plan-tab.active {
+  background: var(--primary, #e6e7ea);
+  color: #090a0d;
+}
+.pay-total-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #fff;
+}
+.pay-total-price {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+.pay-total-old {
+  margin-right: 8px;
+  font-size: 0.85rem;
+  color: var(--text-muted, #8b8b93);
+  text-decoration: line-through;
+}
+.pay-promo-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.pay-promo-input {
+  flex: 1;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 0.85rem;
+  outline: none;
+}
+.pay-promo-input:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.pay-btn-continue {
+  width: 100%;
+  height: 42px;
+  margin-bottom: 10px;
+  font-weight: 700;
+}
+.pay-btn-funpay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #f3f4f6;
+  color: #111827;
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s;
+}
+.pay-btn-funpay:hover {
+  background: #ffffff;
+}
+.pay-funpay-badge {
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: #E6E7EA;
+}
+.pay-info-box {
+  margin-top: 16px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted, #8b8b93);
+}
+.pay-info-box strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #e5e7eb;
+  font-size: 0.82rem;
+}
+.pay-info-warn {
+  color: #f87171;
+  font-weight: 700;
+}
+.pay-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+@media (max-width: 780px) {
+  .pay-modal-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 16px;
+  }
+  .pay-methods-grid {
+    grid-template-columns: repeat(2, 1fr);
+    max-height: 240px;
+  }
+  .pay-summary {
+    padding-left: 0;
+    padding-top: 14px;
+    border-left: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .pay-plans-tabs {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+/* ============================================================
+   ZENITH THEME OVERRIDES (NAV · HERO · AUTH SPLIT · CABINET)
+   ============================================================ */
+
+.nav-buy-pill {
+  border-radius: 99px !important;
+  padding: 0 20px;
+  font-weight: 700;
+}
+
+.nav-pill-zenith {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  border-radius: 99px !important;
+  padding: 0 12px 0 22px;
+}
+.nav-pill-zenith .nav-center { justify-self: start; }
+.nav-pill-zenith .nav-logo-center { justify-self: center; }
+.nav-pill-zenith .nav-right { justify-self: end; }
+
+/* Центрированный Hero в стиле Zenith */
+.hero-zenith {
+  min-height: 78vh;
+  padding: 150px 24px 60px;
+  text-align: center;
+}
+.hero-z-container {
+  max-width: 780px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hero-z-h1 {
+  font-size: clamp(2.6rem, 5.5vw, 4.4rem) !important;
+  letter-spacing: -2px !important;
+  line-height: 1.08 !important;
+  margin-bottom: 16px !important;
+}
+.hero-z-sub {
+  max-width: 560px !important;
+  margin: 0 auto 30px !important;
+  text-align: center;
+}
+.hero-z-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.hero-z-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.hero-z-avatars span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid #09090b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  margin-left: -9px;
+}
+.hero-z-avatars span:first-child { margin-left: 0; }
+.hero-z-btn {
+  border-radius: 99px !important;
+  padding: 13px 28px !important;
+  font-weight: 700 !important;
+}
+.hero-z-users {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.hero-z-perks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Блок телеметрии (Активность сети) */
+.z-stats-top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.z-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 14px;
+}
+.z-stat-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.z-stat-ico svg { width: 18px; height: 18px; }
+.z-stat-lbl {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.z-stat-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.4px;
+}
+
+/* Двухколоночное окно авторизации */
+.auth-modal-zenith {
+  max-width: 880px !important;
+  width: 94%;
+  padding: 0;
+  border-radius: 20px !important;
+  background: rgba(8, 8, 10, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.auth-z-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 10;
+  border-radius: 50%;
+}
+.auth-z-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  min-height: 490px;
+}
+.auth-z-left {
+  padding: 36px 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.auth-z-brand {
+  width: 32px;
+  height: 32px;
+  color: #fff;
+  margin-bottom: 14px;
+}
+.auth-z-brand svg { width: 100%; height: 100%; }
+.auth-z-tabs {
+  margin-bottom: 16px;
+  border-radius: 99px;
+}
+.auth-z-tabs .auth-tab-indicator { border-radius: 99px; }
+.auth-z-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.4px;
+  margin-bottom: 4px;
+}
+.auth-z-sub {
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  margin-bottom: 18px;
+}
+.auth-z-form { gap: 13px; }
+.z-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.z-input-group label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.z-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.z-input-wrap svg {
+  position: absolute;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.z-input-wrap input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.035);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 0.88rem;
+  outline: none;
+  transition: border-color 0.18s, background 0.18s;
+}
+.z-input-wrap input:focus {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+.z-input-group.field-register {
+  max-height: 0;
+  opacity: 0;
+  margin-bottom: -13px;
+  overflow: hidden;
+  pointer-events: none;
+  transition: max-height 0.35s var(--spring), opacity 0.25s, margin 0.35s var(--spring);
+}
+.auth-form.is-register .z-input-group.field-register {
+  max-height: 82px;
+  opacity: 1;
+  margin-bottom: 0;
+  pointer-events: auto;
+}
+.auth-z-submit {
+  width: 100%;
+  height: 44px;
+  border-radius: 99px !important;
+  background: #ffffff;
+  color: #09090b;
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+.auth-z-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.04) 0%, transparent 70%);
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+.auth-z-glass-portal {
+  width: 165px;
+  height: 225px;
+  filter: drop-shadow(0 20px 45px rgba(0, 0, 0, 0.8));
+}
+
+/* Сайдбар кабинета в стиле Zenith */
+.cab-side-user {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 6px 8px 4px;
+}
+.cab-side-user .cab-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  font-size: 0.95rem;
+}
+.cab-side-user-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+.cab-side-username {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cab-nav-btn.active {
+  background: #ffffff !important;
+  color: #09090b !important;
+  border-color: #ffffff !important;
+  border-radius: 99px !important;
+}
+.cab-nav-btn.active::before { display: none; }
+.cab-nav-btn.active .cab-nav-key {
+  color: #09090b;
+  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 860px) {
+  .nav-pill-zenith { display: flex; }
+  .z-stats-top { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .auth-z-grid { grid-template-columns: 1fr; }
+  .auth-z-right { display: none; }
+  .auth-z-left { padding: 28px 22px; }
+}
+.pay-method-ico img{width:28px;height:28px;display:block}
+
+/* ===== ЕДИНЫЙ ТЁМНО-СЕРЫЙ СТИЛЬ + РЕАЛЬНЫЙ БЛЮР ===== */
+:root{--r:20px;--z-glass:rgba(22,22,24,.45);--z-line:rgba(255,255,255,.09);--z-line-h:rgba(255,255,255,.18);--z-blur:blur(22px) saturate(120%)}
+body{background:#09090b}
+.glass,.cab-stat,.z-stat-card,.price-card,.pricing-card,.feature-card,.cab-card,.support-card,.nav-pill,.navbar.scrolled .nav-pill,.modal,.mobile-menu,.toast,.pay-info-box{
+  background:var(--z-glass)!important;
+  border:1px solid var(--z-line)!important;
+  border-radius:var(--r)!important;
+  box-shadow:none!important;
+  backdrop-filter:var(--z-blur)!important;-webkit-backdrop-filter:var(--z-blur)!important;
+}
+.glass:hover,.cab-stat:hover,.z-stat-card:hover,.support-card:hover{border-color:var(--z-line-h)!important}
+.nav-pill{height:58px}
+.btn,.btn-primary,.btn-outline,.cab-nav-btn,.cab-nav-btn.active,input,select,textarea{border-radius:14px!important}
+.z-stat-num,.cab-stat-value{font-size:2.2rem;font-weight:800;letter-spacing:-.02em;color:#fff}
+.cab-stats-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:860px){.cab-stats-3{grid-template-columns:1fr}}
+.smoke-canvas{opacity:1;mix-blend-mode:normal}
+
+/* ===== НЕЙТРАЛЬНЫЙ СТЕКЛЯННЫЙ СТИЛЬ (без синего) + БЛЮР + ХОВЕР ===== */
+:root{--accent:#E6E7EA;--accent-soft:rgba(255,255,255,.08);--accent-line:rgba(255,255,255,.22)}
+
+/* кнопки: светлое стекло */
+.btn-primary,.nav-buy,.pay-btn-continue,.hero-z-btn,a.btn-primary,button.btn-primary{background:rgba(255,255,255,.92)!important;color:#0a0a0b!important;border:1px solid rgba(255,255,255,.5)!important;transition:transform .25s,background .25s,box-shadow .25s!important}
+.btn-primary:hover,.nav-buy:hover,.pay-btn-continue:hover,.hero-z-btn:hover{background:#fff!important;transform:translateY(-2px);box-shadow:0 10px 30px -10px rgba(255,255,255,.45)!important}
+
+/* бейджи / эйбрау */
+.section-eyebrow{background:none!important;border:0!important;padding:0!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;color:#8B8B93!important}
+.section-eyebrow::before,.section-eyebrow::after{display:none!important}
+.hero-eyebrow,.badge,.pricing-badge,.popular-badge{color:#E6E7EA!important;background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.14)!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.hero-eyebrow-dot{background:#fff!important}
+
+/* ВСЕ карточки/блоки: блюр + ховер */
+.glass,.feature-card,.pricing-card,.z-stat-card,.support-card,.video-embed-wrap,.pay-summary,.pay-method,.cab-section,.cab-user{
+  background:rgba(22,22,24,.45)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  backdrop-filter:blur(22px) saturate(120%);-webkit-backdrop-filter:blur(22px) saturate(120%);
+  transition:transform .3s ease,background .3s ease,border-color .3s ease,box-shadow .3s ease!important}
+.glass:hover,.feature-card:hover,.pricing-card:hover,.z-stat-card:hover,.support-card:hover,.video-embed-wrap:hover,.pay-method:hover{
+  background:rgba(34,34,38,.58)!important;
+  border-color:rgba(255,255,255,.22)!important;
+  box-shadow:0 18px 40px -18px rgba(0,0,0,.7)!important;
+  transform:translateY(-3px)}
+.pricing-card.popular,.pricing-card.featured{border-color:rgba(255,255,255,.28)!important}
+.lang-option.active,.nav-auth.logged .nav-auth-avatar{color:#fff!important}
+.nav-auth.logged .nav-auth-avatar{background:rgba(255,255,255,.1)!important}
+.lang-option:hover{background:rgba(255,255,255,.08)!important}
+
+/* слот под скриншот */
+.shot-slot{max-width:960px;width:100%;margin:40px auto 0;padding:10px;border-radius:22px;overflow:hidden;position:relative}
+.shot-slot-lg{margin:0 auto 32px}
+.shot-slot img{display:block;width:100%;height:auto;border-radius:14px}
+.shot-slot.empty{aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+.shot-slot.empty::after{content:"Скриншот";color:#6b6b73;font-size:.95rem;letter-spacing:.08em;text-transform:uppercase}
+
+/* попапы: профиль, язык, модалки — блюр */
+.modal-overlay{background:rgba(9,9,11,.38)!important;backdrop-filter:blur(16px) saturate(120%)!important;-webkit-backdrop-filter:blur(16px) saturate(120%)!important}
+.lang-dropdown,.cabinet-modal,.modal{background:rgba(22,22,24,.55)!important;border:1px solid var(--z-line)!important;border-radius:var(--r)!important;backdrop-filter:blur(24px) saturate(120%)!important;-webkit-backdrop-filter:blur(24px) saturate(120%)!important;box-shadow:none!important;transform:none}
+.modal:hover{transform:none!important}
+.lang-btn,.nav-auth{background:rgba(22,22,24,.45)!important;border:1px solid var(--z-line)!important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);transition:background .25s,border-color .25s,transform .25s}
+.lang-btn:hover,.nav-auth:hover{background:rgba(40,40,44,.6)!important;border-color:rgba(255,255,255,.22)!important}
+
+/* блюр шапки через псевдоэлемент */
+.nav-pill,.navbar.scrolled .nav-pill{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:none!important;position:relative}
+.nav-pill::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;background:rgba(22,22,24,.45);backdrop-filter:blur(22px) saturate(120%);-webkit-backdrop-filter:blur(22px) saturate(120%)}
+.nav-pill{isolation:auto}
+
+/* фон-шейдер как в меню клиента */
+.smoke-canvas{display:block!important;position:fixed;inset:0;width:100%;height:100%;z-index:0;opacity:1!important;mix-blend-mode:normal!important;pointer-events:none}
+.bg-grid,.cursor-glow{display:none!important}
+.hero-z-sub,.hero-z-perks,.hero-z-users{color:#d4d4da!important;text-shadow:0 1px 14px rgba(0,0,0,.65)}
+.logo-flake img,.logo-img{width:100%;height:100%;object-fit:contain;display:block}
+.logo-flake svg{width:100%;height:100%}
+.z-stat-ico svg,.support-icon svg,.video-bullet-icon svg{stroke-width:1.6}
+.gi{display:block;width:24px;height:24px}
+.z-stat-ico .gi,.support-icon .gi{width:26px;height:26px}
+.video-bullet-icon .gi{width:14px;height:14px;stroke-width:2.2}
+.nav-auth-avatar .gi{width:20px;height:20px}
