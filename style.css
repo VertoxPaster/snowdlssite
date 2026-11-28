@@ -2471,10 +2471,9 @@ section { padding: 72px 0; }
   }
 }
 /* ============================================================
-   ZENITH-INSPIRED AUTH SPLIT & CABINET POLISH
+   ZENITH THEME OVERRIDES (NAV · HERO · AUTH SPLIT · CABINET)
    ============================================================ */
 
-/* Капсульная кнопка "Купить" и шапка */
 .nav-buy-pill {
   border-radius: 99px !important;
   padding: 0 20px;
@@ -2491,17 +2490,124 @@ section { padding: 72px 0; }
 .nav-pill-zenith .nav-logo-center { justify-self: center; }
 .nav-pill-zenith .nav-right { justify-self: end; }
 
+/* Центрированный Hero в стиле Zenith */
+.hero-zenith {
+  min-height: 78vh;
+  padding: 150px 24px 60px;
+  text-align: center;
+}
+.hero-z-container {
+  max-width: 780px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.hero-z-h1 {
+  font-size: clamp(2.6rem, 5.5vw, 4.4rem) !important;
+  letter-spacing: -2px !important;
+  line-height: 1.08 !important;
+  margin-bottom: 16px !important;
+}
+.hero-z-sub {
+  max-width: 560px !important;
+  margin: 0 auto 30px !important;
+  text-align: center;
+}
+.hero-z-cta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.hero-z-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.hero-z-avatars span {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid #09090b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  margin-left: -9px;
+}
+.hero-z-avatars span:first-child { margin-left: 0; }
+.hero-z-btn {
+  border-radius: 99px !important;
+  padding: 13px 28px !important;
+  font-weight: 700 !important;
+}
+.hero-z-users {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.hero-z-perks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Блок телеметрии (Активность сети) */
+.z-stats-top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.z-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 22px;
+  border-radius: 14px;
+}
+.z-stat-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.z-stat-ico svg { width: 18px; height: 18px; }
+.z-stat-lbl {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+.z-stat-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.4px;
+}
+
 /* Двухколоночное окно авторизации */
 .auth-modal-zenith {
   max-width: 880px !important;
   width: 94%;
   padding: 0;
   border-radius: 20px !important;
-  background: rgba(8, 8, 10, 0.88);
+  background: rgba(8, 8, 10, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
 }
-
 .auth-z-close {
   position: absolute;
   top: 18px;
@@ -2509,61 +2615,42 @@ section { padding: 72px 0; }
   z-index: 10;
   border-radius: 50%;
 }
-
 .auth-z-grid {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
   min-height: 490px;
 }
-
 .auth-z-left {
-  padding: 40px 42px;
+  padding: 36px 40px;
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
-
 .auth-z-brand {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   color: #fff;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 .auth-z-brand svg { width: 100%; height: 100%; }
-
+.auth-z-tabs {
+  margin-bottom: 16px;
+  border-radius: 99px;
+}
+.auth-z-tabs .auth-tab-indicator { border-radius: 99px; }
 .auth-z-title {
-  font-size: 1.45rem;
+  font-size: 1.4rem;
   font-weight: 800;
   color: #fff;
   letter-spacing: -0.4px;
   margin-bottom: 4px;
 }
-
 .auth-z-sub {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin-bottom: 22px;
-}
-
-.auth-z-note {
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  font-size: 0.8rem;
-  line-height: 1.5;
+  font-size: 0.84rem;
   color: var(--text-muted);
   margin-bottom: 18px;
 }
-.auth-z-note a {
-  color: #fff;
-  font-weight: 600;
-  text-decoration: none;
-  margin-left: 4px;
-}
-
-.auth-z-form { gap: 14px; }
-
+.auth-z-form { gap: 13px; }
 .z-input-group {
   display: flex;
   flex-direction: column;
@@ -2574,7 +2661,6 @@ section { padding: 72px 0; }
   font-weight: 600;
   color: var(--text-muted);
 }
-
 .z-input-wrap {
   position: relative;
   display: flex;
@@ -2605,11 +2691,10 @@ section { padding: 72px 0; }
   border-color: rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.06);
 }
-
 .z-input-group.field-register {
   max-height: 0;
   opacity: 0;
-  margin-bottom: -14px;
+  margin-bottom: -13px;
   overflow: hidden;
   pointer-events: none;
   transition: max-height 0.35s var(--spring), opacity 0.25s, margin 0.35s var(--spring);
@@ -2620,7 +2705,6 @@ section { padding: 72px 0; }
   margin-bottom: 0;
   pointer-events: auto;
 }
-
 .auth-z-submit {
   width: 100%;
   height: 44px;
@@ -2631,28 +2715,6 @@ section { padding: 72px 0; }
   font-size: 0.9rem;
   margin-top: 4px;
 }
-
-.auth-z-switch {
-  margin-top: 8px;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.auth-z-switch button {
-  background: none;
-  border: none;
-  padding: 0;
-  color: #fff;
-  font-weight: 600;
-  font-family: var(--font);
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-.auth-z-switch button:hover { text-decoration: underline; }
-
-/* Правая часть со стеклянной иконкой */
 .auth-z-right {
   display: flex;
   align-items: center;
@@ -2666,7 +2728,7 @@ section { padding: 72px 0; }
   filter: drop-shadow(0 20px 45px rgba(0, 0, 0, 0.8));
 }
 
-/* Профиль внутри сайдбара кабинета + белая активная кнопка */
+/* Сайдбар кабинета в стиле Zenith */
 .cab-side-user {
   display: flex;
   align-items: center;
@@ -2693,7 +2755,6 @@ section { padding: 72px 0; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .cab-nav-btn.active {
   background: #ffffff !important;
   color: #09090b !important;
@@ -2707,10 +2768,13 @@ section { padding: 72px 0; }
   background: rgba(0, 0, 0, 0.06);
 }
 
+@media (max-width: 860px) {
+  .nav-pill-zenith { display: flex; }
+  .z-stats-top { grid-template-columns: 1fr; }
+}
 @media (max-width: 760px) {
   .auth-z-grid { grid-template-columns: 1fr; }
   .auth-z-right { display: none; }
   .auth-z-left { padding: 28px 22px; }
-  .nav-pill-zenith { display: flex; }
 }
 .pay-method-ico img{width:28px;height:28px;display:block}

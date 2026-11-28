@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SnowClient — Minecraft 2026</title>
-  <meta name="description" content="SnowClient — визуальный клиент для Minecraft: красивый интерфейс, высокий FPS, гибкие настройки и регулярные обновления." />
+  <meta name="description" content="SnowClient — клиент для Minecraft 1.21.11 с обходами GrimAC, Matrix и Vulcan, оптимизацией FPS и кастомным ClickGUI." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
@@ -19,31 +19,29 @@
 <div class="cursor-glow" id="cursorGlow"></div>
 <div class="scroll-progress" id="scrollProgress"></div>
 
-<!-- ═════ NAVBAR ═════ -->
+<!-- ═════ NAVBAR (ZENITH PILL) ═════ -->
 <nav class="navbar" id="navbar">
-  <div class="nav-pill">
+  <div class="nav-pill nav-pill-zenith">
 
-    <span class="nav-logo" onclick="scrollTo({top:0,behavior:'smooth'})">
+    <ul class="nav-center" id="navCenter">
+      <li><a href="#pricing"  data-i18n="nav3">Тарифы</a></li>
+      <li><a href="#features" data-i18n="nav1">Функции</a></li>
+      <li><a href="#video"    data-i18n="nav2">Видеообзор</a></li>
+      <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
+    </ul>
+
+    <span class="nav-logo nav-logo-center" onclick="scrollTo({top:0,behavior:'smooth'})" title="SnowClient">
       <span class="logo-flake">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 2v20M3.3 7l17.4 10M3.3 17L20.7 7"/>
           <path d="M9.5 4L12 6.5 14.5 4M9.5 20L12 17.5l2.5 2.5"/>
         </svg>
       </span>
-      <span class="logo-text">SnowClient</span>
     </span>
-
-    <ul class="nav-center" id="navCenter">
-      <li><a href="#hero"        data-i18n="nav0">Главная</a></li>
-      <li><a href="#features"    data-i18n="nav1">Функции</a></li>
-      <li><a href="#video"       data-i18n="nav2">Видеообзор</a></li>
-      <li><a href="#pricing"     data-i18n="nav3">Купить</a></li>
-      <li><a href="#support"     data-i18n="nav4">Поддержка</a></li>
-    </ul>
 
     <div class="nav-right">
       <div class="lang-selector" id="langSelector">
-        <button class="lang-btn" id="langBtn" onclick="toggleLangDropdown()">
+        <button class="lang-btn" id="langBtn" type="button" onclick="toggleLangDropdown()">
           <span id="langFlag">🇷🇺</span>
           <span id="langLabel">RU</span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -59,12 +57,13 @@
         </span>
         <span class="nav-auth-text">
           <span class="nav-auth-name" id="navAuthName" data-i18n="navLogin">Войти</span>
+          <span class="nav-auth-bal" id="navAuthBal" style="display:none !important;"></span>
         </span>
       </button>
 
       <a href="#pricing" class="nav-buy nav-buy-pill" data-i18n="navBuy">Купить</a>
 
-      <button class="hamburger" id="hamburger" onclick="toggleMobileMenu()" aria-label="Меню">
+      <button class="hamburger" id="hamburger" type="button" onclick="toggleMobileMenu()" aria-label="Меню">
         <span></span><span></span><span></span>
       </button>
     </div>
@@ -72,103 +71,117 @@
 </nav>
 
 <div class="mobile-menu" id="mobileMenu">
-  <a href="#hero"     onclick="closeMobileMenu()" data-mob-i18n="nav0">Главная</a>
+  <a href="#pricing"  onclick="closeMobileMenu()" data-mob-i18n="nav3">Тарифы</a>
   <a href="#features" onclick="closeMobileMenu()" data-mob-i18n="nav1">Функции</a>
   <a href="#video"    onclick="closeMobileMenu()" data-mob-i18n="nav2">Видеообзор</a>
-  <a href="#pricing"  onclick="closeMobileMenu()" data-mob-i18n="nav3">Купить</a>
   <a href="#support"  onclick="closeMobileMenu()" data-mob-i18n="nav4">Поддержка</a>
   <button class="mobile-auth" id="mobileAuth" type="button" onclick="closeMobileMenu(); onAuthClick()">
     <span id="mobileAuthLabel" data-i18n="navLogin">Войти</span>
   </button>
 </div>
 
-<!-- ═════ HERO ═════ -->
+<!-- ═════ HERO (ZENITH CENTERED STYLE) ═════ -->
 <section id="hero" style="padding:0;">
-  <div class="hero">
-    <div class="hero-inner">
+  <div class="hero hero-zenith">
+    <div class="hero-z-container">
 
-      <div class="hero-left">
-
-        <div class="hero-eyebrow anim-up">
-          <span class="hero-eyebrow-dot"></span>
-          Minecraft Client · 2026
-        </div>
-
-        <h1 id="heroTitle" aria-label="SnowClient">
-          <span class="hero-title-line hero-title-static" data-split="Snow">Snow</span>
-          <span class="hero-title-line hero-title-accent" data-split="Client">Client</span>
-        </h1>
-
-        <p class="hero-tagline anim-up-3" id="heroTagline">Чистая игра. Высокий FPS. Твой стиль.</p>
-
-        <p class="hero-desc anim-up-3" id="heroQuote">
-          SnowClient — визуальный клиент для Minecraft, в котором красота и скорость идут рука об руку.
-        </p>
-
-        <div class="hero-actions anim-up-4">
-          <a href="#pricing" class="btn btn-primary magnetic" id="heroBtnBuy" style="border-radius:99px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
-              <line x1="3" y1="6" x2="21" y2="6"/>
-              <path d="M16 10a4 4 0 01-8 0"/>
-            </svg>
-            Купить сейчас
-          </a>
-          <a href="#features" class="btn btn-outline" id="heroBtnLearn">Подробнее</a>
-        </div>
-
-        <div class="hero-chips anim-up-5">
-          <span class="chip">Fabric 1.21.11</span>
-          <span class="chip">ClickGUI</span>
-          <span class="chip">Configs</span>
-        </div>
-
+      <div class="hero-eyebrow anim-up">
+        <span class="hero-eyebrow-dot"></span>
+        Присоединяйся · Fabric 1.21.11
       </div>
 
-      <div class="hero-right anim-right">
-        <div class="hero-float">
+      <h1 id="heroTitle" class="hero-z-h1" aria-label="SnowClient">
+        <span class="hero-title-line hero-title-static" data-split="Готов доминировать?">Готов доминировать?</span>
+      </h1>
 
-          <div class="hero-video-frame tilt" id="heroVideoFrame">
-            <div class="hero-video-placeholder" id="heroVideoPlaceholder">
-              <div class="play-icon-wrap">
-                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-              </div>
-              <p id="heroVideoHint">Видео скоро появится</p>
-            </div>
-          </div>
+      <p class="hero-tagline anim-up-3" id="heroTagline" style="display:none;"></p>
+
+      <p class="hero-desc hero-z-sub anim-up-3" id="heroQuote">
+        SnowClient от 180 ₽. Лоадер в кабинете сразу после оплаты, обходы GrimAC, Matrix и Vulcan.
+      </p>
+
+      <div class="hero-z-cta-row anim-up-4">
+        <div class="hero-z-avatars" aria-hidden="true">
+          <span>S</span><span>V</span><span>K</span><span>M</span>
         </div>
+
+        <a href="#pricing" class="btn btn-primary magnetic hero-z-btn" id="heroBtnBuy">
+          Купить SnowClient
+        </a>
+
+        <span class="hero-z-users">Стабильный FPS и актуальные обходы</span>
+      </div>
+
+      <div class="hero-z-perks anim-up-5">
+        <span>• Мгновенная выдача</span>
+        <span>• Поддержка 24/7</span>
+        <span>• Без автосписаний</span>
       </div>
 
     </div>
   </div>
 </section>
 
-<!-- ═════ FEATURES ═════ -->
-<section id="features">
+<!-- ═════ NETWORK ACTIVITY (ZENITH TELEMETRY BLOCK) ═════ -->
+<section id="telemetry" style="padding-top: 20px;">
   <div class="container">
-
     <div class="section-header reveal">
-      <div class="section-eyebrow" data-i18n="eyebrowFeatures">Преимущества</div>
-      <h2 class="section-title" data-i18n="sectionFeatures">Почему SnowClient</h2>
-      <p class="section-subtitle" data-i18n="featuresSubtitle">Всё, что ты получаешь сразу после покупки.</p>
+      <div class="section-eyebrow">Статистика</div>
+      <h2 class="section-title">Активность сети</h2>
+      <p class="section-subtitle">Аккаунты, запуски клиента и обновления — живые цифры из нашей базы.</p>
     </div>
 
-    <div class="features-grid" id="featuresGrid"></div>
+    <div class="z-stats-top reveal">
+      <div class="z-stat-card glass spot">
+        <div class="z-stat-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div>
+          <div class="z-stat-lbl">Версия игры</div>
+          <div class="z-stat-num">1.21.11</div>
+        </div>
+      </div>
 
+      <div class="z-stat-card glass spot">
+        <div class="z-stat-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div>
+          <div class="z-stat-lbl">Античиты</div>
+          <div class="z-stat-num">Grim · Matrix</div>
+        </div>
+      </div>
+
+      <div class="z-stat-card glass spot">
+        <div class="z-stat-ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+        </div>
+        <div>
+          <div class="z-stat-lbl">Аптайм лоадера</div>
+          <div class="z-stat-num">99.9%</div>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
 <div class="divider"></div>
 
-<!-- ═════ VIDEO ═════ -->
+<!-- ═════ VIDEO / SHOWCASE ═════ -->
 <section id="video">
   <div class="container">
     <div class="video-section-container">
 
       <div class="reveal">
-        <div class="section-eyebrow" data-i18n="eyebrowVideo">Видео</div>
-        <h2 class="section-title" data-i18n="sectionVideo">Видеообзор</h2>
-        <p class="section-subtitle" data-i18n="videoSubtitle">Посмотри, как SnowClient выглядит и работает в реальной игре.</p>
+        <div class="section-eyebrow" data-i18n="eyebrowVideo">Обзор</div>
+        <h2 class="section-title" data-i18n="sectionVideo">Попробуй SnowClient</h2>
+        <p class="section-subtitle" data-i18n="videoSubtitle">Продвинутые функции, полностью интерактивный ClickGUI и высокопроизводительные механики.</p>
+
+        <div class="hero-chips" style="margin-top: 20px;">
+          <span class="chip">Fabric 1.21.11</span>
+          <span class="chip">ClickGUI</span>
+          <span class="chip">Обходы GrimAC · Matrix · Vulcan</span>
+        </div>
 
         <div class="video-bullets">
           <div class="video-bullet">
@@ -177,27 +190,44 @@
           </div>
           <div class="video-bullet">
             <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <span class="video-bullet-text" data-i18n="videoBullet2">Показ всех ключевых функций</span>
+            <span class="video-bullet-text" data-i18n="videoBullet2">Показ всех ключевых функций и ротаций</span>
           </div>
           <div class="video-bullet">
             <div class="video-bullet-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg></div>
-            <span class="video-bullet-text" data-i18n="videoBullet3">Настройка интерфейса в деталях</span>
+            <span class="video-bullet-text" data-i18n="videoBullet3">Настройка интерфейса и конфигов в деталях</span>
           </div>
         </div>
       </div>
 
       <div class="reveal reveal-d2">
         <div class="video-embed-wrap" id="videoContainer">
-          <div class="video-embed-placeholder">
+          <div class="video-embed-placeholder" id="heroVideoFrame">
             <div class="play-icon-wrap">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
             </div>
-            <p id="videoPlaceholderText">Видео скоро появится здесь</p>
+            <p id="videoPlaceholderText">Видеообзор скоро появится здесь</p>
           </div>
         </div>
       </div>
 
     </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ═════ FEATURES ═════ -->
+<section id="features">
+  <div class="container">
+
+    <div class="section-header reveal">
+      <div class="section-eyebrow" data-i18n="eyebrowFeatures">Преимущества</div>
+      <h2 class="section-title" data-i18n="sectionFeatures">Возможности SnowClient</h2>
+      <p class="section-subtitle" data-i18n="featuresSubtitle">Всё, что ты получаешь сразу после покупки.</p>
+    </div>
+
+    <div class="features-grid" id="featuresGrid"></div>
+
   </div>
 </section>
 
@@ -284,16 +314,15 @@
         </span>
         SnowClient
       </div>
-      <p class="footer-tagline" id="footerTagline">Чистая игра. Высокий FPS. Твой стиль.</p>
+      <p class="footer-tagline" id="footerTagline">Клиент для Minecraft 1.21.11 с обходами GrimAC, Matrix и Vulcan.</p>
     </div>
 
     <div class="footer-col">
-      <h4 data-i18n="footerNav">Навигация</h4>
+      <h4 data-i18n="footerNav">Продукты</h4>
       <ul>
-        <li><a href="#hero"     data-i18n="nav0">Главная</a></li>
+        <li><a href="#pricing"  data-i18n="nav3">Все тарифы</a></li>
         <li><a href="#features" data-i18n="nav1">Функции</a></li>
         <li><a href="#video"    data-i18n="nav2">Видеообзор</a></li>
-        <li><a href="#pricing"  data-i18n="nav3">Купить</a></li>
         <li><a href="#support"  data-i18n="nav4">Поддержка</a></li>
       </ul>
     </div>
@@ -333,10 +362,8 @@
     </div>
 
     <div class="pay-modal-grid">
-      <!-- Левая колонка: шлюзы -->
       <div class="pay-methods-grid" id="payMethodsGrid"></div>
 
-      <!-- Правая колонка: тариф + кнопки -->
       <div class="pay-summary">
         <h4 class="pay-summary-title" id="paySummaryTitle">Покупка «SnowClient — 30 Дней»</h4>
 
@@ -378,7 +405,7 @@
   </div>
 </div>
 
-<!-- ═════ AUTH MODAL (ZENITH SPLIT STYLE) ═════ -->
+<!-- ═════ AUTH MODAL (ZENITH SPLIT + FULL COMPATIBILITY) ═════ -->
 <div class="modal-overlay" id="modalAuth" onclick="closeModalOutside(event,'modalAuth')">
   <div class="modal glass auth-modal-zenith">
     <button class="modal-close auth-z-close" type="button" onclick="closeModal('auth')" aria-label="Close">
@@ -386,7 +413,6 @@
     </button>
 
     <div class="auth-z-grid">
-      <!-- Левая колонка: форма -->
       <div class="auth-z-left">
         <div class="auth-z-brand">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -395,13 +421,15 @@
           </svg>
         </div>
 
-        <h3 class="auth-z-title" id="authZTitle">С возвращением</h3>
-        <p class="auth-z-sub" id="authSub" data-i18n="authSubLogin">Войдите, чтобы продолжить.</p>
-
-        <div class="auth-z-note" id="authZRegNote" hidden>
-          Хочешь просто купить? Регистрация не нужна — оплати напрямую, аккаунт создадим сами.
-          <a href="#pricing" onclick="closeModal('auth')">К тарифам →</a>
+        <!-- Обязательные вкладки для client-auth.js (оформлены как чистые пилюли) -->
+        <div class="auth-tabs auth-z-tabs" id="authTabs" role="tablist">
+          <span class="auth-tab-indicator" id="authIndicator"></span>
+          <button class="auth-tab active" id="tabLogin" role="tab" type="button" onclick="switchAuthTab('login')" data-i18n="authLogin">Вход</button>
+          <button class="auth-tab" id="tabRegister" role="tab" type="button" onclick="switchAuthTab('register')" data-i18n="authRegister">Регистрация</button>
         </div>
+
+        <h3 class="auth-z-title" id="authZTitle">С возвращением</h3>
+        <p class="auth-sub auth-z-sub" id="authSub" data-i18n="authSubLogin">Войдите, чтобы продолжить.</p>
 
         <form class="auth-form auth-z-form" id="authForm" onsubmit="submitAuth(event)" novalidate>
           <div class="z-input-group field-register" id="fieldUsername">
@@ -435,15 +463,10 @@
 
           <div class="auth-error" id="authError" role="alert"></div>
 
-          <button class="btn btn-primary auth-z-submit" id="authSubmit" type="submit">
+          <button class="btn btn-primary auth-submit auth-z-submit" id="authSubmit" type="submit">
             <span class="spinner"></span>
             <span id="authSubmitLabel" data-i18n="authSubmitLogin">Войти</span>
           </button>
-
-          <div class="auth-z-switch">
-            <span id="authZSwitchText">Нет аккаунта?</span>
-            <button type="button" id="authZSwitchBtn" onclick="toggleZenithAuthMode()">Зарегистрироваться</button>
-          </div>
         </form>
       </div>
 
@@ -522,17 +545,15 @@
 <script src="script.js"></script>
 <script src="client-auth.js"></script>
 <script>
-  let _zMode = 'login';
-  function toggleZenithAuthMode() {
-    _zMode = _zMode === 'login' ? 'register' : 'login';
-    if (typeof switchAuthTab === 'function') switchAuthTab(_zMode);
-    const isReg = _zMode === 'register';
-    document.getElementById('authZTitle').textContent = isReg ? 'Создать аккаунт' : 'С возвращением';
-    document.getElementById('authSub').textContent = isReg ? 'Присоединяйтесь к сообществу SnowClient.' : 'Войдите, чтобы продолжить.';
-    document.getElementById('authZRegNote').hidden = !isReg;
-    document.getElementById('authZSwitchText').textContent = isReg ? 'Уже есть аккаунт?' : 'Нет аккаунта?';
-    document.getElementById('authZSwitchBtn').textContent = isReg ? 'Войти' : 'Зарегистрироваться';
-  }
+  // Синхронизация заголовка модалки при переключении вкладок Вход / Регистрация
+  document.getElementById('tabLogin')?.addEventListener('click', () => {
+    const t = document.getElementById('authZTitle');
+    if (t) t.textContent = 'С возвращением';
+  });
+  document.getElementById('tabRegister')?.addEventListener('click', () => {
+    const t = document.getElementById('authZTitle');
+    if (t) t.textContent = 'Создать аккаунт';
+  });
 </script>
 </body>
 </html>

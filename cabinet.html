@@ -16,14 +16,14 @@
 <div class="bg-grid"></div>
 <div class="cursor-glow" id="cursorGlow"></div>
 
-<!-- ═════ NAVBAR (ZENITH STYLE) ═════ -->
+<!-- ═════ NAVBAR (ZENITH PILL) ═════ -->
 <nav class="navbar scrolled" id="navbar">
   <div class="nav-pill nav-pill-zenith">
     <ul class="nav-center">
-      <li><a href="/#pricing" data-i18n="nav3">Тарифы</a></li>
+      <li><a href="/#pricing"  data-i18n="nav3">Тарифы</a></li>
       <li><a href="/#features" data-i18n="nav1">Функции</a></li>
-      <li><a href="/#video" data-i18n="nav2">Видеообзор</a></li>
-      <li><a href="/#support" data-i18n="nav4">Поддержка</a></li>
+      <li><a href="/#video"    data-i18n="nav2">Видеообзор</a></li>
+      <li><a href="/#support"  data-i18n="nav4">Поддержка</a></li>
     </ul>
 
     <a class="nav-logo nav-logo-center" href="/" aria-label="SnowClient">
@@ -125,15 +125,18 @@
 
       <div class="cab-main">
 
-        <!-- ВКЛАДКА 1: ОБЗОР -->
+        <!-- ВКЛАДКА 1: ОБЗОР (БЕЗ БАЛАНСА И РУБЛЕЙ) -->
         <section class="cab-panel active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" tabindex="-1">
+          <!-- Скрытый элемент на случай обращения из cabinet.js -->
+          <span id="cabBalance" hidden></span>
+
           <div class="cab-stats-3" style="grid-template-columns: 1fr 1fr;">
             <div class="cab-stat glass spot">
               <div class="cab-stat-head">
                 <span class="cab-stat-label">Подписка на клиент</span>
                 <span class="cab-sub-pill inactive" id="cabSubPill">—</span>
               </div>
-              <div class="cab-stat-value" id="cabSubStateText">Нет подписки</div>
+              <div class="cab-stat-value" id="cabSubStateText">Аккаунт</div>
               <div class="cab-stat-sub" id="cabEmail"></div>
             </div>
 
@@ -207,10 +210,10 @@
             <div id="clientLockedBox" class="client-locked" hidden>
               <div class="client-locked-text">
                 <strong data-i18n="clientNoSubTitle">Требуется активная подписка</strong>
-                <p data-i18n="clientNoSubDesc">Приобретите подписку на FunPay или активируйте ключ во вкладке «Ключи и оплата», чтобы открыть доступ к скачиванию.</p>
+                <p data-i18n="clientNoSubDesc">Приобретите подписку или активируйте ключ во вкладке «Ключи и оплата», чтобы открыть доступ к скачиванию.</p>
               </div>
               <div class="client-locked-btns">
-                <a class="btn btn-primary" id="cabBuyClientBtn" href="https://funpay.com/users/9984257/" target="_blank" rel="noopener" style="border-radius:99px;" data-i18n="cabBuyFunpay">Купить подписку</a>
+                <a class="btn btn-primary" id="cabBuyClientBtn" href="#buy" style="border-radius:99px;" data-i18n="cabBuySub">Купить подписку</a>
                 <button class="btn btn-outline" type="button" onclick="switchCabTab('keys')" data-i18n="cabActivate">Активировать ключ</button>
               </div>
             </div>
@@ -240,7 +243,7 @@
         <section class="cab-panel" id="panel-keys" role="tabpanel" aria-labelledby="tab-keys" tabindex="-1">
           <div class="cab-card glass spot" style="margin-bottom:16px;">
             <h2 data-i18n="cabKey">Активация лицензионного ключа</h2>
-            <p class="cab-card-sub" data-i18n="cabKeyHint">После покупки на FunPay вставь полученный ключ ниже — подписка активируется мгновенно.</p>
+            <p class="cab-card-sub" data-i18n="cabKeyHint">После покупки вставь полученный ключ ниже — подписка активируется мгновенно.</p>
             <form class="cab-key" onsubmit="activateKey(event)">
               <input type="text" id="cabKeyInput" class="cab-key-input" autocomplete="off" spellcheck="false" placeholder="SNW-XXXX-XXXX-XXXX" />
               <button class="btn btn-primary" id="cabKeyBtn" type="submit" style="border-radius:99px;">
@@ -253,10 +256,10 @@
           <div class="cab-card glass spot">
             <div class="cab-funpay-row">
               <div>
-                <h2 data-i18n="cabFunpayTitle">Покупка подписки через FunPay</h2>
-                <p class="cab-card-sub" style="margin-bottom:0;" data-i18n="cabFunpayDesc">Оплата банковскими картами, СБП и кошельками с гарантией сделки.</p>
+                <h2 data-i18n="cabFunpayTitle">Покупка подписки</h2>
+                <p class="cab-card-sub" style="margin-bottom:0;" data-i18n="cabFunpayDesc">Выбор тарифа и автоматическая выдача подписки на аккаунт.</p>
               </div>
-              <a class="btn btn-primary" id="cabBuyKeysBtn" href="https://funpay.com/lots/offer?id=78533148" target="_blank" rel="noopener" style="border-radius:99px;" data-i18n="cabBuyFunpayLink">Перейти к оплате →</a>
+              <a class="btn btn-primary" id="cabBuyKeysBtn" href="#buy" style="border-radius:99px;" data-i18n="cabBuySub">Купить подписку →</a>
             </div>
           </div>
         </section>
@@ -348,10 +351,8 @@
     </div>
 
     <div class="pay-modal-grid">
-      <!-- Левая колонка: шлюзы -->
       <div class="pay-methods-grid" id="payMethodsGrid"></div>
 
-      <!-- Правая колонка: тариф + кнопки -->
       <div class="pay-summary">
         <h4 class="pay-summary-title" id="paySummaryTitle">Покупка «SnowClient — 30 Дней»</h4>
 
